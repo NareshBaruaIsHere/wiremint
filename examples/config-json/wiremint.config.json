@@ -1,0 +1,33 @@
+{
+  "server": {
+    "port": 3006,
+    "host": "127.0.0.1",
+    "basePath": "/v1"
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/products/:productId",
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "{{params.productId}}",
+          "name": "Wireless Headphones",
+          "price": 99.99
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "response": {
+        "status": 201,
+        "body": {
+          "orderId": "ord_1001",
+          "status": "confirmed"
+        }
+      }
+    }
+  ]
+}
+
