@@ -145,6 +145,24 @@ export class RequestInspector {
   }
 
   /**
+   * Delete a single request record by its unique request ID.
+   */
+  deleteRequest(id: string): boolean {
+    if (!this.isEnabled) return false;
+    return this.store.delete(id);
+  }
+
+  /**
+   * Delete multiple request records by their unique request IDs.
+   */
+  deleteRequests(ids: Iterable<string>): void {
+    if (!this.isEnabled) return;
+    for (const id of ids) {
+      this.store.delete(id);
+    }
+  }
+
+  /**
    * Clear all request records currently stored in history.
    */
   clear(): void {

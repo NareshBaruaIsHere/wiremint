@@ -107,6 +107,8 @@ export interface WiremintInstance {
   listScenarios(): ScenarioMetadata[];
   /** Reset state store and sequence counters for a scenario (defaults to active scenario). */
   resetScenario(id?: string): void;
+  /** Reset state stores and sequence counters for all registered scenarios. */
+  resetAllScenarios(): void;
   /** Clear the active scenario, reverting back to the default scenario. */
   clearScenario(): void;
 
@@ -269,6 +271,7 @@ export function createWiremint(options: WiremintOptions = {}): WiremintInstance 
     getScenario: () => scenarioManager.getScenario(),
     listScenarios: () => scenarioManager.listScenarios(),
     resetScenario: (id) => scenarioManager.resetScenario(id),
+    resetAllScenarios: () => scenarioManager.resetAll(),
     clearScenario: () => scenarioManager.clearScenario(),
 
     listen(serverOptions?: ServerOptions) {

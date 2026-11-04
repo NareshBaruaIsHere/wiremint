@@ -19,18 +19,16 @@ import { dispatchInProcessRequest } from "./in-process-runner.js";
 export class WiremintTestClient {
   readonly app: WiremintInstance;
   private readonly options: TestClientOptions;
-  private readonly initialSimulation: SimulationConfig | undefined;
+  private activeScenarioId: string | undefined;
+  private clientSimulation: SimulationConfig | boolean | null | undefined;
+  private readonly recordedRequestIds = new Set<string>();
   private closed = false;
 
   constructor(app: WiremintInstance, options: TestClientOptions = {}) {
     this.app = app;
     this.options = options;
-    this.initialSimulation = app.getSimulation();
-
-    // Apply initial simulation override if specified in options
-    if (options.simulation !== undefined) {
-      app.setSimulation(options.simulation);
-    }
+    this.activeScenarioId = options.scenario;
+    this.clientSimulation = options.simulation;
   }
 
   /**
@@ -49,18 +47,27 @@ export class WiremintTestClient {
     const effectivePath = basePath ? `${basePath.replace(/\/$/, "")}/${path.replace(/^\//, "")}` : path;
 
     // Merge defaultHeaders
-    const headers = {
+    const headers: Record<string, string | string[] | undefined> = {
       ...(this.options.defaultHeaders as Record<string, string> | undefined),
       ...(options.headers as Record<string, string> | undefined),
     };
 
-    const effectiveScenario = options.scenario ?? this.options.scenario;
+    const effectiveScenario = options.scenario ?? this.activeScenarioId ?? this.options.scenario;
+    const effectiveSimulation =
+      options.simulation !== undefined ? options.simulation : this.clientSimulation;
 
-    return dispatchInProcessRequest(this.app, method, effectivePath, {
+    const response = await dispatchInProcessRequest(this.app, method, effectivePath, {
       ...options,
       headers,
       scenario: effectiveScenario,
+      simulation: effectiveSimulation,
     });
+
+    if (response.requestId) {
+      this.recordedRequestIds.add(response.requestId);
+    }
+
+    return response;
   }
 
   /**
@@ -108,14 +115,15 @@ export class WiremintTestClient {
   // --- Request History & Inspector Testing ---
 
   /**
-   * Returns all requests recorded by the inspector in chronological order.
+   * Returns all requests recorded by this test client in chronological order.
    */
   history(): RequestRecord[] {
-    return this.app.inspect().getRequests({ order: "oldest-first" });
+    const all = this.app.inspect().getRequests({ order: "oldest-first" });
+    return all.filter((r) => this.recordedRequestIds.has(r.id));
   }
 
   /**
-   * Returns the most recent request recorded by the inspector.
+   * Returns the most recent request recorded by this test client.
    */
   lastRequest(): RequestRecord | undefined {
     const all = this.history();
@@ -123,14 +131,15 @@ export class WiremintTestClient {
   }
 
   /**
-   * Clears recorded request history.
+   * Clears recorded request history for this test client.
    */
   clearHistory(): void {
-    this.app.inspect().clear();
+    this.app.inspect().deleteRequests(this.recordedRequestIds);
+    this.recordedRequestIds.clear();
   }
 
   /**
-   * Finds requests matching filter criteria.
+   * Finds requests matching filter criteria recorded by this test client.
    */
   findRequests(filter: RequestFilterOptions = {}): RequestRecord[] {
     let requests = this.history();
@@ -165,24 +174,31 @@ export class WiremintTestClient {
   // --- Scenario Testing Utilities ---
 
   /**
-   * Switch the active application scenario.
+   * Switch the active application scenario for this test client.
    */
   setScenario(id: string): void {
-    this.app.setScenario(id);
+    this.activeScenarioId = id;
   }
 
   /**
-   * Get metadata describing the currently active scenario.
+   * Get metadata describing the currently active scenario for this test client.
    */
   getScenario(): ScenarioMetadata {
+    if (this.activeScenarioId) {
+      const found = this.app.listScenarios().find((s) => s.id === this.activeScenarioId);
+      if (found) return found;
+      return { id: this.activeScenarioId, name: this.activeScenarioId, description: "" };
+    }
     return this.app.getScenario();
   }
 
   /**
    * Reset in-memory state and sequential response counters for a scenario.
+   * If `id` is omitted, resets the currently active scenario for this client.
    */
   resetScenario(id?: string): void {
-    this.app.resetScenario(id);
+    const target = id ?? this.activeScenarioId ?? this.app.getScenario().id;
+    this.app.resetScenario(target);
   }
 
   /**
@@ -193,10 +209,10 @@ export class WiremintTestClient {
   }
 
   /**
-   * Clear the active scenario, reverting back to the default scenario.
+   * Clear the client's active scenario, reverting back to the default scenario.
    */
   clearScenario(): void {
-    this.app.clearScenario();
+    this.activeScenarioId = undefined;
   }
 
   // --- Network Simulation Controls ---
@@ -207,26 +223,27 @@ export class WiremintTestClient {
    * Pass `null` or `undefined` to revert to baseline settings.
    */
   setSimulation(config?: SimulationConfig | boolean | null): void {
-    this.app.setSimulation(config);
+    this.clientSimulation = config;
   }
 
   /**
-   * Reverts simulation settings back to the application's initial baseline.
+   * Reverts simulation settings back to the test client's initial options.
    */
   resetSimulation(): void {
-    this.app.setSimulation(this.initialSimulation);
+    this.clientSimulation = this.options.simulation;
   }
 
   // --- Lifecycle Management ---
 
   /**
    * Resets test client state: clears request history, resets scenario state,
-   * and restores initial simulation settings.
+   * restores initial scenario selection, and restores initial simulation settings.
    */
   reset(): void {
     this.clearHistory();
     this.clearScenario();
     this.resetSimulation();
+    this.app.resetAllScenarios();
   }
 
   /**
@@ -235,7 +252,9 @@ export class WiremintTestClient {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    this.resetSimulation();
+    this.clearHistory();
+    this.activeScenarioId = undefined;
+    this.clientSimulation = undefined;
   }
 }
 
@@ -257,6 +276,16 @@ export function createWiremintTestClient(
 ): WiremintTestClient {
   return new WiremintTestClient(app, options);
 }
+
+/**
+ * Creates a completely isolated Wiremint application and test client.
+ */
+createWiremintTestClient.isolated = function isolated(
+  options: TestClientOptions = {},
+): WiremintTestClient {
+  const app = createWiremint();
+  return new WiremintTestClient(app, options);
+};
 
 /**
  * Creates a test client by discovering or loading a Wiremint configuration from disk.

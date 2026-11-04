@@ -1,0 +1,29 @@
+name: Feature Request
+description: Propose a new feature, enhancement, or capability for Wiremint.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome proposals for new features that align with Wiremint's mission: "Build without waiting for your backend."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: Is your feature request related to a problem or limitation? Please describe.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution / API
+      description: How would you like Wiremint to address this? Include code examples if applicable.
+      render: typescript
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or workarounds you considered.
+

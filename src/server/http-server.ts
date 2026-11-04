@@ -6,7 +6,7 @@ import { BODY_METHODS } from "../core/types.js";
 import { ServerError } from "../core/errors.js";
 import { DEFAULT_HOST, DEFAULT_MAX_BODY_SIZE } from "../core/context.js";
 import { normalizePath } from "../router/route.js";
-import type { SimulationConfig } from "../simulation/types.js";
+import type { SimulationConfig, RouteSimulationConfig } from "../simulation/types.js";
 import type { ScenarioManager, ScenarioResolver } from "../scenarios/index.js";
 import {
   SimulationEngine,
@@ -136,6 +136,7 @@ export function createMockServer(router: Router, options: MockServerOptions) {
       typeof customReqId === "string" && customReqId.trim().length > 0
         ? customReqId.trim()
         : randomUUID();
+    res.setHeader("x-wiremint-request-id", requestId);
     const startTime = performance.now();
     const reqTimestamp = new Date().toISOString();
 
@@ -406,22 +407,37 @@ export function createMockServer(router: Router, options: MockServerOptions) {
               }
 
               if (rawBody.length > 0) {
-                try {
-                  body = JSON.parse(rawBody);
-                } catch {
-                  res.writeHead(400, {
-                    "Content-Type": "application/json",
-                  });
-                  const errPayload = { error: "Invalid JSON body" };
-                  res.end(JSON.stringify(errPayload));
-                  finishRequest(
-                    "error",
-                    400,
-                    { name: "BadRequest", message: "Invalid JSON body" },
-                    { "Content-Type": "application/json" },
-                    errPayload,
-                  );
-                  return;
+                const reqContentType = (req.headers["content-type"] as string | undefined)?.toLowerCase() ?? "";
+                const isExplicitJson = reqContentType.includes("application/json") || reqContentType.includes("+json");
+                const isExplicitText = reqContentType.startsWith("text/");
+
+                if (isExplicitText) {
+                  body = rawBody;
+                } else if (isExplicitJson) {
+                  try {
+                    body = JSON.parse(rawBody);
+                  } catch {
+                    res.writeHead(400, {
+                      "Content-Type": "application/json",
+                    });
+                    const errPayload = { error: "Invalid JSON body" };
+                    res.end(JSON.stringify(errPayload));
+                    finishRequest(
+                      "error",
+                      400,
+                      { name: "BadRequest", message: "Invalid JSON body" },
+                      { "Content-Type": "application/json" },
+                      errPayload,
+                    );
+                    return;
+                  }
+                } else {
+                  // No explicit Content-Type or other media type (e.g. application/octet-stream)
+                  try {
+                    body = JSON.parse(rawBody);
+                  } catch {
+                    body = rawBody;
+                  }
                 }
               }
               requestBodyForRecord = body;
@@ -453,8 +469,22 @@ export function createMockServer(router: Router, options: MockServerOptions) {
                 return;
               }
 
-              // Resolve effective simulation settings (route override > global)
-              const sim = simulationEngine.resolve(route.options?.simulation);
+              // Resolve effective simulation settings (request override > route override > global)
+              let requestSimOverride: RouteSimulationConfig | boolean | undefined;
+              const simHeader = req.headers["x-wiremint-simulation"];
+              if (simHeader === "false" || simHeader === "none") {
+                requestSimOverride = false;
+              } else if (typeof simHeader === "string" && simHeader.startsWith("{")) {
+                try {
+                  requestSimOverride = JSON.parse(simHeader);
+                } catch {
+                  // ignore malformed simulation header
+                }
+              }
+
+              const effectiveRouteSim =
+                requestSimOverride !== undefined ? requestSimOverride : route.options?.simulation;
+              const sim = simulationEngine.resolve(effectiveRouteSim);
 
               // 1. Latency simulation
               if (sim?.latency) {
@@ -589,11 +619,24 @@ export function createMockServer(router: Router, options: MockServerOptions) {
               responseHeaders["Content-Type"] = "application/json";
             }
 
-            const jsonBody = JSON.stringify(mwContext.responseBody ?? null);
+            const finalContentType = (
+              responseHeaders["content-type"] ??
+              responseHeaders["Content-Type"] ??
+              ""
+            ).toLowerCase();
+
+            let responsePayload: string;
+            if (typeof mwContext.responseBody === "string") {
+              responsePayload = mwContext.responseBody;
+            } else if (mwContext.responseBody === undefined || mwContext.responseBody === null) {
+              responsePayload = finalContentType.includes("json") ? "null" : "";
+            } else {
+              responsePayload = JSON.stringify(mwContext.responseBody);
+            }
 
             if (method === "HEAD") {
               responseHeaders["Content-Length"] = String(
-                Buffer.byteLength(jsonBody),
+                Buffer.byteLength(responsePayload),
               );
               res.writeHead(statusCode, responseHeaders);
               res.end();
@@ -606,7 +649,7 @@ export function createMockServer(router: Router, options: MockServerOptions) {
               );
             } else {
               res.writeHead(statusCode, responseHeaders);
-              res.end(jsonBody);
+              res.end(responsePayload);
               const outcome: RequestOutcome = isTimedOut
                 ? "timeout"
                 : statusCode >= 400

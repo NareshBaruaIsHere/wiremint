@@ -51,3 +51,4 @@ describe("Wiremint Vitest Integration", () => {
     expect(errRes).toBeClientError();
   });
 });
+

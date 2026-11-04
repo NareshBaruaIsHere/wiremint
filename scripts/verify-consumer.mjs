@@ -56,3 +56,4 @@ execSync("node index.mjs", { cwd: tmpDir, stdio: "inherit" });
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 console.log("Cleaned up temporary directory.");
+

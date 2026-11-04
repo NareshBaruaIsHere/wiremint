@@ -4,4 +4,7 @@ dist/
 .DS_Store
 coverage/
 .wiremint/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/.temp/
 

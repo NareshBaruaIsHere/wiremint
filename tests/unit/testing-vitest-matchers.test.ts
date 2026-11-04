@@ -74,3 +74,4 @@ describe("Vitest Matchers Adapter", () => {
     expect(res).toHaveJson({ id: 1 });
   });
 });
+

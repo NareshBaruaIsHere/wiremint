@@ -47,7 +47,6 @@ export class InProcessResponse extends Writable {
   statusCode: number = 200;
   headers: Record<string, string | string[]> = {};
   chunks: Buffer[] = [];
-  writableEnded: boolean = false;
   socket: { writable: boolean; destroyed: boolean } = { writable: true, destroyed: false };
 
   writeHead(statusCode: number, headers?: Record<string, string | string[]> | string): this {
@@ -82,29 +81,26 @@ export class InProcessResponse extends Writable {
   }
 
   override _write(
-    chunk: Buffer | string,
+    chunk: any,
     encoding: BufferEncoding,
     callback: (error?: Error | null) => void,
   ): void {
-    this.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
-    callback();
-  }
-
-  override end(chunk?: unknown, encoding?: unknown, callback?: unknown): this {
-    if (chunk) {
-      this.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+    if (this.destroyed) {
+      callback(new Error("Cannot write to destroyed stream"));
+      return;
     }
-    this.writableEnded = true;
-    super.end(callback as any);
-    this.emit("finish");
-    this.emit("close");
-    return this;
+    const buf = Buffer.isBuffer(chunk)
+      ? chunk
+      : typeof chunk === "string"
+        ? Buffer.from(chunk, encoding || "utf-8")
+        : Buffer.from(String(chunk));
+    this.chunks.push(buf);
+    callback();
   }
 
   override destroy(error?: Error | null): this {
     this.socket.destroyed = true;
     this.socket.writable = false;
-    this.emit("close");
     return super.destroy(error ?? undefined);
   }
 }
@@ -164,23 +160,53 @@ export async function dispatchInProcessRequest(
     headers["x-wiremint-request-id"] = options.requestId;
   }
 
+  // Request-level simulation override
+  if (options.simulation !== undefined) {
+    if (options.simulation === false) {
+      headers["x-wiremint-simulation"] = "false";
+    } else if (options.simulation === true || options.simulation === null) {
+      headers["x-wiremint-simulation"] = "none";
+    } else {
+      headers["x-wiremint-simulation"] = JSON.stringify(options.simulation);
+    }
+  }
+
   // 3. Serialize body
   let bodyBuffer: Buffer | null = null;
-  if (options.body !== undefined && options.body !== null) {
+  if (options.textBody !== undefined) {
+    // Explicit plain-text body
+    bodyBuffer = Buffer.from(options.textBody, "utf-8");
+    if (!headers["content-type"]) {
+      headers["content-type"] = "text/plain; charset=utf-8";
+    }
+    headers["content-length"] = String(bodyBuffer.length);
+  } else if (options.body !== undefined && options.body !== null) {
     if (Buffer.isBuffer(options.body)) {
       bodyBuffer = options.body;
-    } else if (typeof options.body === "string") {
-      let isJson = false;
-      try {
-        JSON.parse(options.body);
-        isJson = true;
-      } catch {
-        isJson = false;
-      }
-      const raw = isJson ? options.body : JSON.stringify(options.body);
-      bodyBuffer = Buffer.from(raw, "utf-8");
       if (!headers["content-type"]) {
-        headers["content-type"] = "application/json";
+        headers["content-type"] = "application/octet-stream";
+      }
+      headers["content-length"] = String(bodyBuffer.length);
+    } else if (typeof options.body === "string") {
+      const explicitContentType = (headers["content-type"] as string | undefined)?.toLowerCase() ?? "";
+      if (explicitContentType.startsWith("text/")) {
+        // Plain text string without JSON quoting
+        bodyBuffer = Buffer.from(options.body, "utf-8");
+        headers["content-length"] = String(bodyBuffer.length);
+      } else {
+        let isJson = false;
+        try {
+          JSON.parse(options.body);
+          isJson = true;
+        } catch {
+          isJson = false;
+        }
+        const raw = isJson ? options.body : JSON.stringify(options.body);
+        bodyBuffer = Buffer.from(raw, "utf-8");
+        if (!headers["content-type"]) {
+          headers["content-type"] = "application/json";
+        }
+        headers["content-length"] = String(bodyBuffer.length);
       }
     } else {
       // JSON object or array
@@ -189,9 +215,6 @@ export async function dispatchInProcessRequest(
       if (!headers["content-type"]) {
         headers["content-type"] = "application/json";
       }
-    }
-
-    if (bodyBuffer && !headers["content-length"]) {
       headers["content-length"] = String(bodyBuffer.length);
     }
   }
@@ -208,43 +231,106 @@ export async function dispatchInProcessRequest(
 
   // 5. Execute request pipeline
   await new Promise<void>((resolve, reject) => {
-    res.on("close", () => resolve());
-    res.on("error", (err) => reject(err));
+    let resolved = false;
+
+    const cleanup = () => {
+      res.removeListener("finish", onFinish);
+      res.removeListener("close", onClose);
+      res.removeListener("error", onError);
+    };
+
+    const onFinish = () => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        resolve();
+      }
+    };
+
+    const onClose = () => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        resolve();
+      }
+    };
+
+    const onError = (err: Error) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(err);
+      }
+    };
+
+    res.once("finish", onFinish);
+    res.once("close", onClose);
+    res.once("error", onError);
 
     app.handleRequest(
       req as unknown as IncomingMessage,
       res as unknown as ServerResponse,
-    ).catch(reject);
+    ).then(() => {
+      if (!res.writableEnded && !res.destroyed) {
+        res.end();
+      }
+    }).catch((err) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(err);
+      }
+    });
   });
 
   const duration = Math.round((performance.now() - startTime) * 100) / 100;
   const rawText = Buffer.concat(res.chunks).toString("utf-8");
 
-  // 6. Parse response body if JSON
-  let parsedBody: unknown = rawText;
-  const contentType = res.getHeader("content-type");
-  const isJson =
-    typeof contentType === "string" && contentType.toLowerCase().includes("application/json");
+  // 6. Parse response body according to Content-Type
+  const rawContentType = res.getHeader("content-type");
+  const contentType = typeof rawContentType === "string" ? rawContentType.toLowerCase() : "";
 
-  if (rawText.length > 0) {
-    if (isJson) {
+  const isJson =
+    contentType.includes("application/json") ||
+    /\+[a-z0-9.-]*json\b/i.test(contentType) ||
+    contentType.endsWith("+json");
+  const isTextPlain = contentType.startsWith("text/plain");
+
+  let parsedBody: unknown;
+  if (rawText.length === 0) {
+    parsedBody = undefined;
+  } else if (isTextPlain) {
+    // text/plain responses always remain strings, even if they contain numbers, booleans, or JSON
+    parsedBody = rawText;
+  } else if (isJson) {
+    try {
+      parsedBody = JSON.parse(rawText);
+    } catch {
+      // Invalid JSON responses do not crash the client; falls back to raw text
+      parsedBody = rawText;
+    }
+  } else if (!contentType) {
+    // No content-type specified: try parsing as JSON if it looks like JSON structure
+    const trimmed = rawText.trim();
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
       try {
         parsedBody = JSON.parse(rawText);
       } catch {
         parsedBody = rawText;
       }
     } else {
-      try {
-        parsedBody = JSON.parse(rawText);
-      } catch {
-        parsedBody = rawText;
-      }
+      parsedBody = rawText;
     }
   } else {
-    parsedBody = undefined;
+    // Non-JSON types (HTML, binary, custom)
+    parsedBody = rawText;
   }
 
   const assignedReqId =
+    (res.getHeader("x-wiremint-request-id") as string | undefined) ??
     options.requestId ??
     (res.getHeader("x-request-id") as string | undefined) ??
     "";
@@ -256,10 +342,16 @@ export async function dispatchInProcessRequest(
     body: parsedBody,
     text: rawText,
     json<T = unknown>(): T {
-      if (typeof parsedBody === "object" && parsedBody !== null) {
+      if (parsedBody !== undefined && typeof parsedBody === "object" && parsedBody !== null) {
         return parsedBody as T;
       }
-      return JSON.parse(rawText) as T;
+      try {
+        return JSON.parse(rawText) as T;
+      } catch {
+        throw new Error(
+          `Cannot parse response body as JSON. Content-Type: "${rawContentType ?? "none"}", Body: "${rawText}"`,
+        );
+      }
     },
     requestId: assignedReqId,
     duration,

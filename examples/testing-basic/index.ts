@@ -56,3 +56,4 @@ console.log("✔ GET /api/products/999 (preset):", notFoundRes.body);
 console.log("✔ Recorded requests count:", client.requestCount());
 console.log("✔ Last recorded method:", client.lastRequest()?.method);
 console.log("All assertions passed in-process!");
+

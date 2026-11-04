@@ -61,6 +61,13 @@ export class RequestStore {
   }
 
   /**
+   * Delete a request record by ID.
+   */
+  delete(id: string): boolean {
+    return this.records.delete(id);
+  }
+
+  /**
    * Clear all records from the store.
    */
   clear(): void {

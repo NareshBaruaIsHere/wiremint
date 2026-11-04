@@ -39,7 +39,10 @@
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "keywords": [
     "mock",
@@ -57,14 +60,7 @@
     "type": "git",
     "url": "https://github.com/NareshBaruaIsHere/wiremint.git"
   },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "12.16.1",
-      "onFail": "download"
-    }
-  },
-  "packageManager": "pnpm@12.16.1",
+  "packageManager": "pnpm@10.5.2",
   "dependencies": {
     "commander": "^15.0.0",
     "ora": "^10.0.0",
@@ -76,6 +72,8 @@
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "~5.8.3",
+    "vite": "^6.2.0",
+    "vitepress": "^1.6.4",
     "vitest": "^5.1.0"
   }
 }

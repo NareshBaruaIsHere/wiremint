@@ -40,3 +40,4 @@ describe("Test Client Lifecycle Management", () => {
     await expect(client.get("/data")).rejects.toThrow(/is closed/);
   });
 });
+

@@ -48,6 +48,11 @@ export interface TestRequestOptions {
   body?: unknown;
 
   /**
+   * Explicit plain-text body string (sent with text/plain content type unless overridden).
+   */
+  textBody?: string;
+
+  /**
    * Scenario ID for this specific request (sent via x-wiremint-scenario).
    */
   scenario?: string;
@@ -56,6 +61,12 @@ export interface TestRequestOptions {
    * Explicit request ID override for deterministic test assertions.
    */
   requestId?: string;
+
+  /**
+   * Simulation override for this specific request.
+   * Set `false` to disable simulation for this request.
+   */
+  simulation?: SimulationConfig | boolean | null;
 }
 
 /**
@@ -111,3 +122,4 @@ export interface RequestFilterOptions {
 }
 
 export type { RequestRecord, ScenarioMetadata };
+

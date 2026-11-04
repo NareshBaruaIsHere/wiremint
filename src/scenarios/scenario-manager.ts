@@ -101,6 +101,14 @@ export class ScenarioManager {
   }
 
   /**
+   * Reset all state stores and sequence counters across all scenarios and routes.
+   */
+  resetAll(): void {
+    this.registry.resetAll();
+    this.sequenceManager.resetAll();
+  }
+
+  /**
    * Clear the active scenario, reverting back to the default scenario.
    */
   clearScenario(): void {
