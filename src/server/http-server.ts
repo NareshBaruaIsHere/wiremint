@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { Router } from "../router/router.js";
 import type { HTTPMethod, MockResponse, RequestContext } from "../core/types.js";
@@ -130,32 +130,27 @@ export function createMockServer(router: Router, options: MockServerOptions) {
     return null;
   }
 
-  return {
-    listen(port: number, host: string = DEFAULT_HOST): Promise<void> {
-      if (server?.listening) {
-        return Promise.reject(
-          new ServerError("Server is already listening"),
-        );
-      }
+  async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const customReqId = req.headers["x-wiremint-request-id"];
+    const requestId =
+      typeof customReqId === "string" && customReqId.trim().length > 0
+        ? customReqId.trim()
+        : randomUUID();
+    const startTime = performance.now();
+    const reqTimestamp = new Date().toISOString();
 
-      return new Promise<void>((resolve, reject) => {
-        server = createServer(async (req, res) => {
-          const requestId = randomUUID();
-          const startTime = performance.now();
-          const reqTimestamp = new Date().toISOString();
+    let completed = false;
+    let matchedRoutePattern: string | undefined = undefined;
+    let resolvedScenarioId = "default";
+    let parsedParams: Record<string, string> = {};
+    let requestBodyForRecord: unknown = undefined;
+    let simulationConditions: RequestRecord["simulation"] = undefined;
+    let isTimedOut = false;
 
-          let completed = false;
-          let matchedRoutePattern: string | undefined = undefined;
-          let resolvedScenarioId = "default";
-          let parsedParams: Record<string, string> = {};
-          let requestBodyForRecord: unknown = undefined;
-          let simulationConditions: RequestRecord["simulation"] = undefined;
-          let isTimedOut = false;
-
-          const url = new URL(
-            req.url ?? "/",
-            `http://${req.headers.host ?? "localhost"}`,
-          );
+    const url = new URL(
+      req.url ?? "/",
+      `http://${req.headers.host ?? "localhost"}`,
+    );
           const pathname = normalizePath(url.pathname);
           const method = (req.method ?? "").toUpperCase();
           const routePath = stripBasePath(pathname);
@@ -654,6 +649,21 @@ export function createMockServer(router: Router, options: MockServerOptions) {
               );
             }
           }
+  }
+
+  return {
+    handleRequest,
+
+    listen(port: number, host: string = DEFAULT_HOST): Promise<void> {
+      if (server?.listening) {
+        return Promise.reject(
+          new ServerError("Server is already listening"),
+        );
+      }
+
+      return new Promise<void>((resolve, reject) => {
+        server = createServer((req, res) => {
+          handleRequest(req, res).catch(() => {});
         });
 
         server.once("error", (err) => {
@@ -680,6 +690,14 @@ export function createMockServer(router: Router, options: MockServerOptions) {
           else resolve();
         });
       });
+    },
+
+    setSimulationOverride(config?: SimulationConfig | boolean | null): void {
+      simulationEngine.setOverride(config);
+    },
+
+    getSimulation(): SimulationConfig | undefined {
+      return simulationEngine.getEffectiveConfig();
     },
   };
 }

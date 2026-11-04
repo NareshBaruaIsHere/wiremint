@@ -734,6 +734,240 @@ When you execute `wiremint inspect` or `wiremint scenario set`, the CLI connects
 
 ---
 
+## Testing & Integration Toolkit (`wiremint/testing`)
+
+Wiremint provides a first-class testing and integration toolkit that lets developers test mock APIs directly from unit and integration test suites **without starting a real HTTP server or managing network ports**.
+
+```typescript
+import { createWiremint } from "wiremint";
+import {
+  createWiremintTestClient,
+  expectStatus,
+  expectJson,
+  presets,
+} from "wiremint/testing";
+
+const app = createWiremint();
+app.get("/users", () => presets.ok([{ id: 1, name: "Naresh" }]));
+
+// In-process test client — zero network ports opened
+const client = createWiremintTestClient(app);
+
+const res = await client.get("/users");
+expectStatus(res, 200);
+expectJson(res, [{ id: 1, name: "Naresh" }]);
+```
+
+### Key Highlights
+
+- **Zero Network Ports**: Runs entirely in-process using simulated Node.js streams. Never conflicts with busy ports in CI or parallel test runners.
+- **Full Pipeline Execution**: Executes the exact same pipeline as a live server — routing, middleware, network simulation, scenario resolution, request inspection, and events.
+- **Framework-Independent Assertions**: Built-in assertion helpers throwing typed `TestAssertionError` errors that work in Vitest, Jest, Mocha, or standalone scripts.
+- **Vitest Matchers Adapter**: Optional native matchers under `wiremint/testing/vitest` with automatic TypeScript declaration augmentation.
+- **State & Scenario Control**: Programmatically switch, inspect, and reset scenarios during test execution.
+- **Simulation Control**: Toggle or override latency and failure injection dynamically per test or per request.
+
+### In-Process Test Client
+
+Create a client from an existing application or directly from a configuration file:
+
+```typescript
+// From Wiremint instance
+const client = createWiremintTestClient(app, {
+  defaultHeaders: { "x-api-key": "test-key" },
+  simulation: false, // disable network simulation during tests
+});
+
+// From config file path
+const client = await createWiremintTestClient.fromConfig("./wiremint.config.ts");
+```
+
+#### HTTP Method Helpers
+
+```typescript
+// GET
+const res = await client.get("/users", { query: { role: "admin" } });
+
+// POST
+const res = await client.post("/users", { body: { name: "Alice" } });
+
+// PUT, PATCH, DELETE, OPTIONS
+await client.put("/users/1", { body: { name: "Bob" } });
+await client.patch("/users/1", { body: { active: true } });
+await client.delete("/users/1");
+await client.optionsRoute("/users");
+
+// Custom or dynamic request
+await client.request("GET", "/custom-path");
+```
+
+### Response Object (`TestResponse`)
+
+Every test call returns a strongly-typed `TestResponse`:
+
+```typescript
+interface TestResponse<T = unknown> {
+  status: number;
+  statusCode: number;
+  headers: Record<string, string | string[] | undefined>;
+  body: T;
+  text: string;
+  json<Shape = T>(): Shape;
+  requestId: string;
+  duration: number;
+  ok: boolean; // true for 2xx status codes
+  scenario?: string;
+}
+```
+
+### Framework-Independent Assertions
+
+Wiremint includes readable assertions that work with any test runner:
+
+```typescript
+import {
+  expectStatus,
+  expectSuccessful,
+  expectClientError,
+  expectServerError,
+  expectHeader,
+  expectHeaderMissing,
+  expectJson,
+  expectBody,
+  expectText,
+  expectError,
+} from "wiremint/testing";
+
+const res = await client.get("/api/user");
+
+expectStatus(res, 200);
+expectSuccessful(res);
+expectHeader(res, "content-type", "application/json");
+expectHeader(res, "x-request-id");
+expectHeaderMissing(res, "x-deprecated");
+expectJson(res, { name: "Naresh" }); // deep subset match
+expectText(res, /"name":"Naresh"/);
+```
+
+### Request History & Inspector Testing
+
+Assert that your client code made the expected calls:
+
+```typescript
+// Retrieve recorded requests (chronological order)
+const history = client.history();
+
+// Access the most recent request
+const last = client.lastRequest();
+expect(last?.method).toBe("POST");
+
+// Count total requests
+expect(client.requestCount()).toBe(3);
+
+// Filter recorded requests
+const postRequests = client.findRequests({
+  method: "POST",
+  path: "/api/checkout",
+  status: 201,
+});
+
+// Clear history between tests
+client.clearHistory();
+```
+
+### Scenario & Sequence Testing
+
+Test stateful scenarios and sequence progressions:
+
+```typescript
+// Switch scenario
+client.setScenario("maintenance");
+const res = await client.get("/api/status");
+expectStatus(res, 503);
+
+// Request-level scenario override (does not alter global scenario)
+const defaultRes = await client.get("/api/status", { scenario: "default" });
+expectStatus(defaultRes, 200);
+
+// Reset scenario state, sequence counters, and active scenario
+client.reset();
+```
+
+### Simulation Testing
+
+Test frontend error handling and retry loops:
+
+```typescript
+// Enable failure simulation for a specific test
+client.setSimulation({
+  failure: { rate: 1.0, statusCode: 503 },
+});
+const failedRes = await client.get("/api/data");
+expectStatus(failedRes, 503);
+
+// Disable simulation temporarily
+client.resetSimulation();
+
+// Or disable per-request
+const bypassRes = await client.get("/api/data", { simulation: false });
+expectStatus(bypassRes, 200);
+```
+
+### Response Presets
+
+Common mock response presets for concise route definitions:
+
+```typescript
+import { presets } from "wiremint/testing";
+
+app.get("/items", () => presets.ok([{ id: 1 }]));
+app.post("/items", () => presets.created({ id: 2 }));
+app.delete("/items/:id", () => presets.noContent());
+app.get("/items/empty", () => presets.emptyList());
+app.get("/missing", () => presets.notFound("Resource not found"));
+app.get("/secure", () => presets.unauthorized("Authentication required"));
+app.get("/forbidden", () => presets.forbidden("Insufficient permissions"));
+app.get("/crash", () => presets.serverError("Database unreachable"));
+app.get("/delayed", presets.slow(300, { data: "delayed payload" }));
+```
+
+### Vitest Matchers Adapter
+
+Wiremint includes dedicated matchers for Vitest with TypeScript autocomplete:
+
+```typescript
+// vitest.setup.ts
+import { expect } from "vitest";
+import { wiremintMatchers } from "wiremint/testing/vitest";
+
+expect.extend(wiremintMatchers);
+```
+
+```typescript
+// my-feature.test.ts
+import { describe, it, expect } from "vitest";
+import { createWiremint } from "wiremint";
+import { createWiremintTestClient } from "wiremint/testing";
+
+describe("Users API", () => {
+  const app = createWiremint();
+  app.get("/users", () => ({ status: 200, body: [{ id: 1, name: "Alice" }] }));
+
+  const client = createWiremintTestClient(app);
+
+  it("returns user list", async () => {
+    const res = await client.get("/users");
+
+    expect(res).toHaveStatus(200);
+    expect(res).toBeSuccessful();
+    expect(res).toHaveHeader("content-type", /json/);
+    expect(res).toHaveJson([{ id: 1 }]);
+  });
+});
+```
+
+---
+
 ## Error Handling
 
 Wiremint provides custom error classes for programmatic error handling:
@@ -789,6 +1023,7 @@ pnpm build
 - [x] Strongly typed request lifecycle event system (Milestone 04)
 - [x] Configuration engine & declarative mock servers (Milestone 05)
 - [x] Developer CLI & local control plane (Milestone 06)
+- [x] Testing & integration toolkit: in-process client, zero network ports, assertions, presets & Vitest matchers (Milestone 07)
 - [ ] Offline-like network simulation & browser connectivity modes
 - [ ] Documentation website
 

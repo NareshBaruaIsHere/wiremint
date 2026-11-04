@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   HTTPMethod,
   MockResponse,
@@ -5,7 +6,7 @@ import type {
   ServerOptions,
   WiremintOptions,
 } from "./types.js";
-import type { RouteOptions } from "../simulation/types.js";
+import type { RouteOptions, SimulationConfig } from "../simulation/types.js";
 import type {
   RouteHandlerOrConfig,
   ScenarioDefinition,
@@ -113,6 +114,13 @@ export interface WiremintInstance {
   listen(options?: ServerOptions): Promise<void>;
   /** Stop the HTTP server. */
   close(): Promise<void>;
+
+  /** Handle an incoming HTTP request in-process without opening a network port. */
+  handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void>;
+  /** Override or disable network simulation dynamically. */
+  setSimulation(config?: SimulationConfig | boolean | null): void;
+  /** Get current effective simulation configuration. */
+  getSimulation(): SimulationConfig | undefined;
 }
 
 /**
@@ -271,6 +279,18 @@ export function createWiremint(options: WiremintOptions = {}): WiremintInstance 
 
     close() {
       return server.close();
+    },
+
+    handleRequest(req: IncomingMessage, res: ServerResponse) {
+      return server.handleRequest(req, res);
+    },
+
+    setSimulation(config?: SimulationConfig | boolean | null) {
+      server.setSimulationOverride(config);
+    },
+
+    getSimulation() {
+      return server.getSimulation();
     },
   };
 

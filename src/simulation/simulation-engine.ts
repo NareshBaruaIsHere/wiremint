@@ -253,6 +253,7 @@ export function resolveSimulationConfig(
 export class SimulationEngine {
   private readonly globalConfig?: SimulationConfig;
   private readonly defaultRandom: RandomGenerator;
+  private overrideConfig?: SimulationConfig | false | null;
 
   constructor(globalConfig?: SimulationConfig) {
     if (globalConfig) {
@@ -263,10 +264,41 @@ export class SimulationEngine {
   }
 
   /**
+   * Set or clear a temporary simulation override.
+   * Passing `false` completely disables network simulation.
+   * Passing `null` or `undefined` restores baseline simulation settings.
+   */
+  setOverride(config?: SimulationConfig | boolean | null): void {
+    if (config === false) {
+      this.overrideConfig = false;
+      return;
+    }
+    if (config === true || config === null || config === undefined) {
+      this.overrideConfig = null;
+      return;
+    }
+    validateSimulationConfig(config);
+    this.overrideConfig = config;
+  }
+
+  /**
+   * Return the effective active simulation configuration (override if present, else baseline).
+   */
+  getEffectiveConfig(): SimulationConfig | undefined {
+    if (this.overrideConfig === false) return undefined;
+    return this.overrideConfig ?? this.globalConfig;
+  }
+
+  /**
    * Resolve active simulation settings for a given route match.
    */
   resolve(routeConfig?: RouteSimulationConfig): ResolvedSimulationConfig | undefined {
-    return resolveSimulationConfig(this.globalConfig, routeConfig, this.defaultRandom);
+    if (this.overrideConfig === false) {
+      return undefined;
+    }
+    const base = this.overrideConfig ?? this.globalConfig;
+    const rng = base?.random ?? this.defaultRandom;
+    return resolveSimulationConfig(base, routeConfig, rng);
   }
 
   /**
