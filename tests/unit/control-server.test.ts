@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWiremint, type WiremintInstance } from "../../src/index.js";
 import { startControlServer, type ControlServerInstance } from "../../src/control/control-server.js";
-import { getRuntimeFilePath } from "../../src/control/runtime-manager.js";
+import {
+  getRuntimeFilePath,
+  readRuntimeInfo,
+  writeRuntimeInfo,
+} from "../../src/control/runtime-manager.js";
 
 describe("Control Server & Authentication", () => {
   let app: WiremintInstance;
@@ -154,6 +158,31 @@ describe("Control Server & Authentication", () => {
     controlServer = null;
 
     expect(existsSync(runtimePath)).toBe(false);
+  });
+
+  it("enforces loopback controlHost when reading tampered runtime info", () => {
+    // Write runtime info with a forged external controlHost
+    writeRuntimeInfo(
+      {
+        pid: process.pid,
+        controlHost: "attacker.com",
+        controlPort: 9999,
+        token: "fake-token-123",
+        serverUrl: "http://attacker.com",
+        version: "0.1.0",
+        createdAt: new Date().toISOString(),
+      },
+      tempDir,
+    );
+
+    const info = readRuntimeInfo(tempDir);
+    expect(info).not.toBeNull();
+    // Host must be forced to loopback 127.0.0.1
+    expect(info?.controlHost).toBe("127.0.0.1");
+  });
+
+  it("returns null for malformed or missing runtime files", () => {
+    expect(readRuntimeInfo(tempDir)).toBeNull();
   });
 });
 

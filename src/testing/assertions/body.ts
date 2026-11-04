@@ -32,7 +32,9 @@ function isSubset(target: unknown, subset: unknown): boolean {
 export function expectJson(response: TestResponse, expectedSubset?: unknown): void {
   const contentType = response.headers["content-type"];
   const isJsonHeader =
-    typeof contentType === "string" && contentType.toLowerCase().includes("application/json");
+    typeof contentType === "string" &&
+    (contentType.toLowerCase().includes("application/json") ||
+      contentType.toLowerCase().includes("+json"));
 
   if (!isJsonHeader && (typeof response.body !== "object" || response.body === null)) {
     throw new TestAssertionError(

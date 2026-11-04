@@ -25,7 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - Named mock application scenarios (`app.scenario(id, definition)`).
   - Dynamic scenario resolution via headers (`x-wiremint-scenario`), query parameters (`__scenario`), and programmatic API.
   - Isolated in-memory `StateStore` per scenario for stateful cart, session, and profile testing.
-  - Sequential response queues (`sequence`, `afterEnd: "repeat-last" | "loop" | "error"`).
+  - Sequential response queues (`sequence`, `afterEnd: "repeat-last" | "cycle"`).
 
 - **Middleware Pipeline, Request Inspector & Event System (Milestone 04 / 04.1)**
   - Onion-style middleware pipeline with pre- and post-`next()` response header and body transformation.
@@ -54,4 +54,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - Built-in framework-independent assertions (`expectStatus`, `expectJson`, `expectHeader`, `expectSuccessful`, `expectClientError`, `expectServerError`).
   - Common mock response presets (`presets.ok`, `presets.notFound`, `presets.unauthorized`, `presets.slow`, etc.).
   - Vitest matchers adapter under `wiremint/testing/vitest` (`toHaveStatus`, `toBeSuccessful`, `toHaveHeader`, `toHaveJson`, `toMatchJson`).
+
+- **Release Infrastructure & Security Hardening (Milestone 08 / 08.1)**
+  - Comprehensive VitePress documentation website with API references, guides, and architectural diagrams.
+  - Automated GitHub Pages documentation deployment workflow.
+  - Cross-platform CI matrix testing on Node.js 22, 24, and 26 across Linux and Windows.
+  - GitHub Actions OIDC trusted publishing with cryptographically verifiable SLSA build provenance (`--provenance`).
+  - Strict security boundary separating external TCP HTTP requests from internal testing simulation overrides using in-memory `WeakMap` metadata.
+  - Application ownership semantics (`ApplicationOwnership = "shared" | "owned"`) preventing test client scenario state bleed.
+  - Collision-free Request Inspector store retaining distinct entries for duplicate user-specified request IDs.
+
 

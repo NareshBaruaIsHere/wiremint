@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  lstatSync,
+  unlinkSync,
+} from "node:fs";
 import { join } from "node:path";
 import type { RuntimeInfo } from "./types.js";
 
@@ -34,11 +42,33 @@ export function writeRuntimeInfo(
   cwd: string = process.cwd(),
 ): string {
   const dirPath = join(cwd, RUNTIME_DIR_NAME);
+
+  // Prevent writing through a symlinked runtime directory
+  try {
+    const dirStat = lstatSync(dirPath, { throwIfNoEntry: false });
+    if (dirStat?.isSymbolicLink()) {
+      rmSync(dirPath, { force: true });
+    }
+  } catch {
+    // ignore
+  }
+
   if (!existsSync(dirPath)) {
     mkdirSync(dirPath, { recursive: true, mode: 0o700 });
   }
 
   const filePath = join(dirPath, RUNTIME_FILE_NAME);
+
+  // Prevent overwriting through a symlinked runtime file
+  try {
+    const fileStat = lstatSync(filePath, { throwIfNoEntry: false });
+    if (fileStat?.isSymbolicLink()) {
+      unlinkSync(filePath);
+    }
+  } catch {
+    // ignore
+  }
+
   const data = JSON.stringify(info, null, 2);
 
   writeFileSync(filePath, data, { mode: 0o600 });
@@ -50,7 +80,14 @@ export function writeRuntimeInfo(
  */
 export function readRuntimeInfo(cwd: string = process.cwd()): RuntimeInfo | null {
   const filePath = getRuntimeFilePath(cwd);
-  if (!existsSync(filePath)) {
+
+  // Reject symlinks to prevent path traversal / arbitrary file reading
+  try {
+    const fileStat = lstatSync(filePath, { throwIfNoEntry: false });
+    if (!fileStat || fileStat.isSymbolicLink()) {
+      return null;
+    }
+  } catch {
     return null;
   }
 
@@ -65,7 +102,16 @@ export function readRuntimeInfo(cwd: string = process.cwd()): RuntimeInfo | null
       typeof parsed.controlPort === "number" &&
       typeof parsed.token === "string"
     ) {
-      return parsed as RuntimeInfo;
+      // Validate controlHost: must be strictly loopback to prevent SSRF / token exfiltration
+      const host =
+        parsed.controlHost === "127.0.0.1" || parsed.controlHost === "localhost"
+          ? parsed.controlHost
+          : "127.0.0.1";
+
+      return {
+        ...parsed,
+        controlHost: host,
+      } as RuntimeInfo;
     }
     return null;
   } catch {

@@ -71,10 +71,12 @@ export function redactHeaders(
 /**
  * Deep-clone and redact sensitive keys from a JSON body or JavaScript object/array.
  * Does not mutate the input value.
+ * Handles circular references safely, preventing stack overflows.
  */
 export function redactBodyValue(
   value: unknown,
   sensitiveKeys: Set<string>,
+  seen: WeakSet<object> = new WeakSet(),
 ): unknown {
   if (value === null || value === undefined) {
     return value;
@@ -85,9 +87,15 @@ export function redactBodyValue(
     return value;
   }
 
+  // Cycle detection
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  seen.add(value);
+
   // Arrays
   if (Array.isArray(value)) {
-    return value.map((item) => redactBodyValue(item, sensitiveKeys));
+    return value.map((item) => redactBodyValue(item, sensitiveKeys, seen));
   }
 
   // Buffers or Uint8Array
@@ -107,7 +115,7 @@ export function redactBodyValue(
     if (sensitiveKeys.has(lowerKey)) {
       result[key] = REDACTED_PLACEHOLDER;
     } else {
-      result[key] = redactBodyValue(val, sensitiveKeys);
+      result[key] = redactBodyValue(val, sensitiveKeys, seen);
     }
   }
 

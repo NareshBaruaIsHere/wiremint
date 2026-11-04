@@ -21,8 +21,10 @@ Type-helper providing autocomplete and validation for configuration objects:
 import { defineConfig } from "wiremint/config";
 
 export default defineConfig({
-  port: 4000,
-  basePath: "/api",
+  server: {
+    port: 4000,
+    basePath: "/api",
+  },
 });
 ```
 

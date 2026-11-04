@@ -20,9 +20,11 @@ Use `defineConfig` for full autocomplete and type safety:
 import { defineConfig } from "wiremint/config";
 
 export default defineConfig({
-  port: 3000,
-  host: "127.0.0.1",
-  basePath: "/api",
+  server: {
+    port: 3000,
+    host: "127.0.0.1",
+    basePath: "/api",
+  },
 
   simulation: {
     latency: { min: 50, max: 200, jitter: 15 },

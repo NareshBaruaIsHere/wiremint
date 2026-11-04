@@ -53,11 +53,12 @@ app.get("/api/deployment/status", {
     { status: 200, body: { status: "building", progress: 50 } },
     { status: 200, body: { status: "live", progress: 100 } },
   ],
-  afterEnd: "repeat-last", // or "loop" or "error"
+  afterEnd: "repeat-last", // or "cycle"
 });
 ```
 
 - `"repeat-last"`: Once the sequence finishes, subsequent requests continue to return the last response.
+- `"cycle"`: Once the sequence finishes, it restarts from the first response.
 - `"loop"`: Restarts from the beginning of the sequence.
 - `"error"`: Rejects subsequent requests with `500 Sequence exhausted`.
 

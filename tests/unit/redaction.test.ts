@@ -235,6 +235,21 @@ describe("Inspector Redaction", () => {
       // Original remains unchanged
       expect(originalErr.message).toBe("Invalid token: token=secret-xyz987");
     });
+
+    it("safely handles circular references in object bodies without stack overflow", () => {
+      const circularObj: any = {
+        name: "Test Entity",
+        password: "secret-value",
+      };
+      circularObj.self = circularObj;
+      circularObj.nested = { parent: circularObj };
+
+      const sanitized = redactBodyValue(circularObj, sensitiveKeys) as any;
+      expect(sanitized.name).toBe("Test Entity");
+      expect(sanitized.password).toBe(REDACTED_PLACEHOLDER);
+      expect(sanitized.self).toBe("[Circular]");
+      expect(sanitized.nested.parent).toBe("[Circular]");
+    });
   });
 });
 
