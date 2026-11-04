@@ -2,6 +2,7 @@ import { Readable, Writable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WiremintInstance } from "../core/engine.js";
 import type { TestRequestOptions, TestResponse } from "./types.js";
+import { setRequestMetadata } from "../server/request-metadata.js";
 
 /**
  * In-process simulated Readable stream simulating an IncomingMessage.
@@ -160,17 +161,6 @@ export async function dispatchInProcessRequest(
     headers["x-wiremint-request-id"] = options.requestId;
   }
 
-  // Request-level simulation override
-  if (options.simulation !== undefined) {
-    if (options.simulation === false) {
-      headers["x-wiremint-simulation"] = "false";
-    } else if (options.simulation === true || options.simulation === null) {
-      headers["x-wiremint-simulation"] = "none";
-    } else {
-      headers["x-wiremint-simulation"] = JSON.stringify(options.simulation);
-    }
-  }
-
   // 3. Serialize body
   let bodyBuffer: Buffer | null = null;
   if (options.textBody !== undefined) {
@@ -226,6 +216,18 @@ export async function dispatchInProcessRequest(
     headers,
     bodyBuffer,
   });
+
+  if (
+    options.simulation !== undefined ||
+    options.clientId !== undefined ||
+    options.uniqueCallId !== undefined
+  ) {
+    setRequestMetadata(req, {
+      simulationOverride: options.simulation,
+      clientId: options.clientId,
+      uniqueCallId: options.uniqueCallId,
+    });
+  }
 
   const res = new InProcessResponse();
 
@@ -334,6 +336,9 @@ export async function dispatchInProcessRequest(
     options.requestId ??
     (res.getHeader("x-request-id") as string | undefined) ??
     "";
+  const internalCallId =
+    options.uniqueCallId ??
+    (res.getHeader("x-wiremint-call-id") as string | undefined);
 
   return {
     status: res.statusCode,
@@ -354,6 +359,8 @@ export async function dispatchInProcessRequest(
       }
     },
     requestId: assignedReqId,
+    internalId: internalCallId,
+    callId: internalCallId,
     duration,
     ok: res.statusCode >= 200 && res.statusCode < 300,
     scenario: options.scenario,

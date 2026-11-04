@@ -26,3 +26,4 @@ npx wiremint [command]
 | `wiremint scenario reset [id]` | Reset state store and sequence counters |
 | `wiremint inspect` | View recent recorded HTTP requests and metrics |
 | `wiremint doctor` | Run diagnostic checks on Node.js and configuration |
+

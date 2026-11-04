@@ -84,3 +84,4 @@ When multiple configuration sources exist, Wiremint applies configuration in the
 2. **Environment Variables**: `WIREMINT_PORT`, `WIREMINT_BASE_PATH`, `WIREMINT_LATENCY_FIXED`
 3. **Configuration File**: Values declared in `wiremint.config.ts` or `wiremint.config.json`
 4. **Built-in Defaults**: Port `3000`, host `127.0.0.1`, `basePath` `""` (Lowest priority)
+

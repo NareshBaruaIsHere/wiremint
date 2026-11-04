@@ -58,3 +58,4 @@ Creates a new Wiremint application instance.
 - `app.close()`: Stop HTTP server. Returns `Promise<void>`.
 - `app.handleRequest(req, res)`: Execute request pipeline in-process directly.
 - `app.inspect()`: Access the `RequestInspector`.
+

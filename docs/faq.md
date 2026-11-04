@@ -26,3 +26,4 @@ Yes! While Wiremint includes dedicated matchers for Vitest, the test client and 
 ## Is Wiremint ESM-only?
 
 Yes. Wiremint is published as a modern, ESM-first package targeting Node.js 22+.
+

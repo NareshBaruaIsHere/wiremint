@@ -53,3 +53,4 @@ Wiremint requires **Node.js 22.0.0** or later. If you see syntax errors or missi
 node -v
 # Ensure output is >= 22.0.0
 ```
+

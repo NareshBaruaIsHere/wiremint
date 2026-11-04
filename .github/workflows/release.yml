@@ -1,14 +1,13 @@
 name: Publish Release
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       publish:
-        description: "Set to 'true' to execute publication to npm"
+        description: "Set to true to execute publication to npm via OIDC trusted publishing"
+        type: boolean
         required: true
-        default: "false"
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # Required for npm provenance / trusted publishing
+      id-token: write # Required for npm provenance and OIDC trusted publishing
 
     steps:
       - name: Checkout repository
@@ -29,14 +28,19 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.5.2
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 26 (npm >= 11.5.1)
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Verify npm CLI version
+        run: |
+          echo "Node version: $(node -v)"
+          echo "npm version: $(npm -v)"
 
       - name: Install dependencies
         run: pnpm install
@@ -50,22 +54,28 @@ jobs:
       - name: Build production package
         run: pnpm build
 
+      - name: Build documentation
+        run: pnpm docs:build
+
       - name: Dry-run package creation
         run: npm pack --dry-run
 
       - name: Verify external package consumer
         run: node scripts/verify-consumer.mjs
 
-      - name: Publish to npm (Dry-Run by default)
-        if: ${{ github.event.inputs.publish != 'true' }}
+      - name: Validate publication (Dry-run by default)
+        if: ${{ inputs.publish != true }}
         run: |
-          echo "Release verification complete! Publishing is guarded and disabled by default."
+          echo "Running publication dry-run..."
+          npm publish --dry-run --provenance --access public
+          echo ""
+          echo "=========================================================================="
+          echo "Release verification passed! Publishing was NOT executed (publish: false)."
           echo "To execute actual publication, run this workflow with input: publish=true"
+          echo "=========================================================================="
 
-      - name: Publish to npm
-        if: ${{ github.event.inputs.publish == 'true' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Execute trusted publish to npm
+        if: ${{ inputs.publish == true }}
         run: |
-          pnpm publish --access public --no-git-checks --provenance
-
+          echo "Executing npm publish with OIDC provenance..."
+          npm publish --provenance --access public

@@ -71,3 +71,4 @@ Switch scenarios live in a running server from the command line:
 ```bash
 wiremint scenario set maintenance
 ```
+

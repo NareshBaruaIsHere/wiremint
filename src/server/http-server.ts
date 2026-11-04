@@ -31,6 +31,7 @@ import {
   createMiddlewareContext,
   executeMiddlewarePipeline,
 } from "../middleware/index.js";
+import { getRequestMetadata, clearRequestMetadata } from "./request-metadata.js";
 
 /** Valid HTTP methods Wiremint will accept. */
 const VALID_METHODS: ReadonlySet<string> = new Set([
@@ -137,6 +138,12 @@ export function createMockServer(router: Router, options: MockServerOptions) {
         ? customReqId.trim()
         : randomUUID();
     res.setHeader("x-wiremint-request-id", requestId);
+
+    const internalMeta = getRequestMetadata(req);
+    if (internalMeta?.uniqueCallId) {
+      res.setHeader("x-wiremint-call-id", internalMeta.uniqueCallId);
+    }
+
     const startTime = performance.now();
     const reqTimestamp = new Date().toISOString();
 
@@ -233,6 +240,8 @@ export function createMockServer(router: Router, options: MockServerOptions) {
 
               inspector.record({
                 id: requestId,
+                internalId: internalMeta?.uniqueCallId,
+                clientId: internalMeta?.clientId,
                 timestamp: reqTimestamp,
                 completedAt,
                 duration,
@@ -257,6 +266,7 @@ export function createMockServer(router: Router, options: MockServerOptions) {
                 error: safeError,
                 simulation: simulationConditions,
               });
+              clearRequestMetadata(req);
             }
           };
 
@@ -469,16 +479,18 @@ export function createMockServer(router: Router, options: MockServerOptions) {
                 return;
               }
 
-              // Resolve effective simulation settings (request override > route override > global)
+              // Resolve effective simulation settings (internal request metadata override > route override > global)
               let requestSimOverride: RouteSimulationConfig | boolean | undefined;
-              const simHeader = req.headers["x-wiremint-simulation"];
-              if (simHeader === "false" || simHeader === "none") {
-                requestSimOverride = false;
-              } else if (typeof simHeader === "string" && simHeader.startsWith("{")) {
-                try {
-                  requestSimOverride = JSON.parse(simHeader);
-                } catch {
-                  // ignore malformed simulation header
+              if (internalMeta?.simulationOverride !== undefined) {
+                if (internalMeta.simulationOverride === false) {
+                  requestSimOverride = false;
+                } else if (
+                  internalMeta.simulationOverride === true ||
+                  internalMeta.simulationOverride === null
+                ) {
+                  requestSimOverride = undefined;
+                } else if (typeof internalMeta.simulationOverride === "object") {
+                  requestSimOverride = internalMeta.simulationOverride;
                 }
               }
 

@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { WiremintInstance } from "../core/engine.js";
 import { createWiremint } from "../core/engine.js";
 import { loadConfig } from "../config/config-resolver.js";
 import type { SimulationConfig } from "../simulation/types.js";
 import type {
+  ApplicationOwnership,
   RequestFilterOptions,
   RequestRecord,
   ScenarioMetadata,
@@ -18,16 +20,24 @@ import { dispatchInProcessRequest } from "./in-process-runner.js";
  */
 export class WiremintTestClient {
   readonly app: WiremintInstance;
+  readonly ownership: ApplicationOwnership;
   private readonly options: TestClientOptions;
-  private activeScenarioId: string | undefined;
+  private activeScenarioId: string;
   private clientSimulation: SimulationConfig | boolean | null | undefined;
+  private readonly clientId = randomUUID();
+  private readonly recordedCallIds = new Set<string>();
   private readonly recordedRequestIds = new Set<string>();
   private closed = false;
 
-  constructor(app: WiremintInstance, options: TestClientOptions = {}) {
+  constructor(
+    app: WiremintInstance,
+    options: TestClientOptions = {},
+    ownership: ApplicationOwnership = "shared",
+  ) {
     this.app = app;
     this.options = options;
-    this.activeScenarioId = options.scenario;
+    this.ownership = ownership;
+    this.activeScenarioId = options.scenario ?? "default";
     this.clientSimulation = options.simulation;
   }
 
@@ -52,15 +62,20 @@ export class WiremintTestClient {
       ...(options.headers as Record<string, string> | undefined),
     };
 
-    const effectiveScenario = options.scenario ?? this.activeScenarioId ?? this.options.scenario;
+    const effectiveScenario = options.scenario ?? this.activeScenarioId;
     const effectiveSimulation =
       options.simulation !== undefined ? options.simulation : this.clientSimulation;
+
+    const uniqueCallId = randomUUID();
+    this.recordedCallIds.add(uniqueCallId);
 
     const response = await dispatchInProcessRequest(this.app, method, effectivePath, {
       ...options,
       headers,
       scenario: effectiveScenario,
       simulation: effectiveSimulation,
+      clientId: this.clientId,
+      uniqueCallId,
     });
 
     if (response.requestId) {
@@ -116,10 +131,17 @@ export class WiremintTestClient {
 
   /**
    * Returns all requests recorded by this test client in chronological order.
+   * Prevents cross-contamination when multiple test clients share an application
+   * or use duplicate request IDs.
    */
   history(): RequestRecord[] {
     const all = this.app.inspect().getRequests({ order: "oldest-first" });
-    return all.filter((r) => this.recordedRequestIds.has(r.id));
+    return all.filter(
+      (r) =>
+        (r.internalId !== undefined && this.recordedCallIds.has(r.internalId)) ||
+        r.clientId === this.clientId ||
+        (!r.internalId && !r.clientId && this.recordedRequestIds.has(r.id)),
+    );
   }
 
   /**
@@ -132,9 +154,13 @@ export class WiremintTestClient {
 
   /**
    * Clears recorded request history for this test client.
+   * Removes only the requests recorded by this client from the inspector store.
    */
   clearHistory(): void {
-    this.app.inspect().deleteRequests(this.recordedRequestIds);
+    if (this.recordedCallIds.size > 0) {
+      this.app.inspect().deleteRequests(this.recordedCallIds);
+    }
+    this.recordedCallIds.clear();
     this.recordedRequestIds.clear();
   }
 
@@ -195,6 +221,10 @@ export class WiremintTestClient {
   /**
    * Reset in-memory state and sequential response counters for a scenario.
    * If `id` is omitted, resets the currently active scenario for this client.
+   *
+   * Note: In shared ownership mode (`createWiremintTestClient(app)`), resetting a scenario
+   * affects the shared application's state store for that scenario. In owned mode
+   * (`.isolated()` or `.fromConfig()`), the scenario state is isolated to this client's application instance.
    */
   resetScenario(id?: string): void {
     const target = id ?? this.activeScenarioId ?? this.app.getScenario().id;
@@ -209,10 +239,10 @@ export class WiremintTestClient {
   }
 
   /**
-   * Clear the client's active scenario, reverting back to the default scenario.
+   * Clear the client's active scenario, reverting back to the default or configured scenario.
    */
   clearScenario(): void {
-    this.activeScenarioId = undefined;
+    this.activeScenarioId = this.options.scenario ?? "default";
   }
 
   // --- Network Simulation Controls ---
@@ -236,14 +266,23 @@ export class WiremintTestClient {
   // --- Lifecycle Management ---
 
   /**
-   * Resets test client state: clears request history, resets scenario state,
-   * restores initial scenario selection, and restores initial simulation settings.
+   * Resets test client state: clears request history, restores initial scenario selection,
+   * and restores initial simulation settings.
+   *
+   * In 'owned' mode (`.isolated()`, `.fromConfig()`), it also resets all scenario state stores
+   * and sequential responses on the owned application (`resetAllScenarios()`).
+   *
+   * In 'shared' mode (`createWiremintTestClient(app)`), shared application scenario stores
+   * are left untouched to prevent breaking other concurrent test clients or test suites.
    */
   reset(): void {
     this.clearHistory();
     this.clearScenario();
     this.resetSimulation();
-    this.app.resetAllScenarios();
+    if (this.ownership === "owned") {
+      this.app.resetAllScenarios();
+      this.app.clearScenario();
+    }
   }
 
   /**
@@ -253,8 +292,11 @@ export class WiremintTestClient {
     if (this.closed) return;
     this.closed = true;
     this.clearHistory();
-    this.activeScenarioId = undefined;
+    this.activeScenarioId = this.options.scenario ?? "default";
     this.clientSimulation = undefined;
+    if (this.ownership === "owned") {
+      await this.app.close();
+    }
   }
 }
 
@@ -274,7 +316,7 @@ export function createWiremintTestClient(
   app: WiremintInstance,
   options: TestClientOptions = {},
 ): WiremintTestClient {
-  return new WiremintTestClient(app, options);
+  return new WiremintTestClient(app, options, "shared");
 }
 
 /**
@@ -284,7 +326,7 @@ createWiremintTestClient.isolated = function isolated(
   options: TestClientOptions = {},
 ): WiremintTestClient {
   const app = createWiremint();
-  return new WiremintTestClient(app, options);
+  return new WiremintTestClient(app, options, "owned");
 };
 
 /**
@@ -296,5 +338,5 @@ createWiremintTestClient.fromConfig = async function fromConfig(
 ): Promise<WiremintTestClient> {
   const resolved = await loadConfig(pathOrOptions ? { configFile: pathOrOptions } : {});
   const app = createWiremint(resolved);
-  return new WiremintTestClient(app, options);
+  return new WiremintTestClient(app, options, "owned");
 };

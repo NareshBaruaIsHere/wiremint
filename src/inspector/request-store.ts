@@ -18,9 +18,10 @@ export class RequestStore {
    * If capacity is exceeded, evicts the oldest recorded item.
    */
   push(record: RequestRecord): void {
-    // If the record ID already exists, delete it first to maintain insertion order
-    if (this.records.has(record.id)) {
-      this.records.delete(record.id);
+    const key = record.internalId ?? record.id;
+    // If this specific record key already exists, delete it first to maintain insertion order
+    if (this.records.has(key)) {
+      this.records.delete(key);
     } else if (this.records.size >= this.maxEntries) {
       // Evict oldest record (first item in Map iterator)
       const oldestKey = this.records.keys().next().value;
@@ -29,21 +30,30 @@ export class RequestStore {
       }
     }
 
-    this.records.set(record.id, record);
+    this.records.set(key, record);
   }
 
   /**
-   * Look up a request record by ID.
+   * Look up a request record by ID or internal ID.
    */
   get(id: string): RequestRecord | undefined {
-    return this.records.get(id);
+    const direct = this.records.get(id);
+    if (direct) return direct;
+    for (const rec of Array.from(this.records.values()).reverse()) {
+      if (rec.id === id) return rec;
+    }
+    return undefined;
   }
 
   /**
    * Check if a request record with the given ID exists in history.
    */
   has(id: string): boolean {
-    return this.records.has(id);
+    if (this.records.has(id)) return true;
+    for (const rec of this.records.values()) {
+      if (rec.id === id) return true;
+    }
+    return false;
   }
 
   /**
@@ -61,10 +71,18 @@ export class RequestStore {
   }
 
   /**
-   * Delete a request record by ID.
+   * Delete a request record by internal ID or public ID.
    */
-  delete(id: string): boolean {
-    return this.records.delete(id);
+  delete(keyOrId: string): boolean {
+    if (this.records.delete(keyOrId)) return true;
+    let deleted = false;
+    for (const [k, rec] of this.records.entries()) {
+      if (rec.id === keyOrId || rec.internalId === keyOrId) {
+        this.records.delete(k);
+        deleted = true;
+      }
+    }
+    return deleted;
   }
 
   /**

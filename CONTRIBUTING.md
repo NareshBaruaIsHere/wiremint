@@ -98,3 +98,38 @@ All contributors and participants are expected to adhere to the [Code of Conduct
 5. **Open a Pull Request:**
    - Fill out the PR template with a clear description of the problem solved and test verification steps.
 
+---
+
+## Release & Deployment Workflows
+
+### npm Trusted Publishing (OIDC)
+
+Wiremint uses **GitHub Actions OIDC Trusted Publishing** to publish packages to npm with verifiable SLSA provenance:
+
+1. **One-Time npm Configuration**:
+   - On [npmjs.com](https://www.npmjs.com/), navigate to package settings: **Settings > Publishing Access > Trusted Publishers**.
+   - Add GitHub Actions publisher:
+     - **GitHub Organization / Owner**: `NareshBaruaIsHere`
+     - **Repository**: `wiremint`
+     - **Workflow filename**: `release.yml`
+     - **Environment**: *(leave blank or match environment if configured)*
+2. **Publishing a Release**:
+   - In GitHub, go to **Actions > Publish Release > Run workflow**.
+   - Set `publish` to `true` (defaults to `false` for verification/dry-run).
+   - The workflow uses Node.js 26 (npm >= 11.5.1) and publishes via:
+     ```bash
+     npm publish --provenance --access public
+     ```
+   - No persistent `NPM_TOKEN` secret is needed or used.
+
+### GitHub Pages Documentation Deployment
+
+Wiremint documentation is built with VitePress and deployed via GitHub Actions:
+
+1. **Repository Settings**:
+   - Go to **Settings > Pages** on GitHub.
+   - Under **Build and deployment > Source**, select **GitHub Actions**.
+2. **Automated Deployment**:
+   - Pushes to the `main` branch touching `docs/**`, `package.json`, or `.github/workflows/docs.yml` automatically trigger `.github/workflows/docs.yml`.
+   - The workflow builds VitePress, uploads artifacts via `actions/upload-pages-artifact@v3`, and deploys via `actions/deploy-pages@v4`.
+

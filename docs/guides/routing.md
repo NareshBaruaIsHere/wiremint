@@ -77,3 +77,4 @@ Prefix all registered routes with a common base path:
 const app = createWiremint({ basePath: "/api/v1" });
 app.get("/users", handler); // Matches /api/v1/users
 ```
+

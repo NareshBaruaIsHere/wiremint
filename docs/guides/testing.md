@@ -137,3 +137,4 @@ app.get("/forbidden", () => presets.forbidden("Access denied"));
 app.get("/crash", () => presets.serverError("Database unreachable"));
 app.get("/slow", presets.slow(300, { data: "delayed payload" }));
 ```
+

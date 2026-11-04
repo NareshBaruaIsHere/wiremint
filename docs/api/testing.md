@@ -69,9 +69,10 @@ Creates an in-process test client for a `WiremintInstance`.
 - `client.resetScenario(id?)`: Reset scenario state and sequence counters.
 
 ### Simulation & Lifecycle
+- `client.ownership`: *("shared" | "owned")* Ownership mode. `"shared"` for clients wrapping an external application; `"owned"` for isolated clients created via `.isolated()` or `.fromConfig()`.
 - `client.setSimulation(config)`: Override simulation for this client.
 - `client.resetSimulation()`: Restore initial simulation options.
-- `client.reset()`: Resets history, active scenario, simulation, and all scenario states.
+- `client.reset()`: Resets history, reverts active scenario, and restores simulation settings. In `owned` mode, also resets all scenario state stores and sequential responses (`resetAllScenarios()`); in `shared` mode, shared application scenario state is left untouched.
 - `client.close()`: Idempotent cleanup.
 
 ---
@@ -87,6 +88,8 @@ interface TestResponse<T = unknown> {
   text: string;
   json<Shape = T>(): Shape;
   requestId: string;
+  internalId?: string;
+  callId?: string;
   duration: number;
   ok: boolean;
   scenario?: string;
@@ -111,3 +114,4 @@ Available matchers:
 - `expect(res).toHaveJson(expectedSubset)`
 - `expect(res).toMatchJson(expectedSubset)`
 - `expect(res).toHaveBody(exactBody)`
+

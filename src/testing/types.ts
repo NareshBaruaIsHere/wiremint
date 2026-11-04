@@ -3,6 +3,13 @@ import type { RequestRecord } from "../inspector/types.js";
 import type { ScenarioMetadata } from "../scenarios/types.js";
 
 /**
+ * Mode of application instance ownership for a test client.
+ * - 'shared': Client wraps an external application. `reset()` leaves scenario stores intact.
+ * - 'owned': Client owns an isolated application instance. `reset()` resets all scenario stores.
+ */
+export type ApplicationOwnership = "shared" | "owned";
+
+/**
  * Options for configuring a Wiremint in-process test client.
  */
 export interface TestClientOptions {
@@ -67,6 +74,16 @@ export interface TestRequestOptions {
    * Set `false` to disable simulation for this request.
    */
   simulation?: SimulationConfig | boolean | null;
+
+  /**
+   * Internal test client identifier.
+   */
+  clientId?: string;
+
+  /**
+   * Internal unique invocation ID for collision-free tracking.
+   */
+  uniqueCallId?: string;
 }
 
 /**
@@ -99,6 +116,12 @@ export interface TestResponse {
 
   /** Unique request tracking ID. */
   requestId: string;
+
+  /** Internal collision-free call ID. */
+  internalId?: string;
+
+  /** Alias for internalId. */
+  callId?: string;
 
   /** Request duration in milliseconds. */
   duration: number;

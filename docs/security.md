@@ -25,3 +25,17 @@ The Request Inspector sanitizes sensitive fields before recording requests into 
 
 - Request inspector history is strictly bounded (default: 1,000 entries) with oldest-entry FIFO eviction.
 - Request payload streaming enforces a `maxBodySize` limit (default: 1 MB) to prevent denial-of-service memory exhaustion.
+
+## 5. Supply Chain Security & OIDC Trusted Publishing
+
+Wiremint releases are published using npm's OIDC Trusted Publishing (via GitHub Actions) rather than persistent long-lived API tokens:
+- **Zero Static Secrets**: Releases use short-lived cryptographic OIDC tokens issued directly by GitHub Actions (`id-token: write`). No static `NPM_TOKEN` secret is stored in repository settings.
+- **Verifiable Build Provenance**: Every release is published with `--provenance`, generating cryptographic SLSA provenance attestations linking published tarballs back to the exact source commit and GitHub Actions workflow run.
+- **Guarded Manual Trigger**: The release workflow (`.github/workflows/release.yml`) is triggered via manual `workflow_dispatch` and defaults to `publish: false` (running validation and dry-run only). Publication to npm is strictly opt-in requiring `publish: true`.
+
+## 6. Network Simulation Boundary & Request Metadata Isolation
+
+Network simulation settings can be overridden dynamically during in-process testing (`WiremintTestClient`), but these overrides are passed exclusively through internal Node.js in-memory `WeakMap` references (`src/server/request-metadata.ts`):
+- **No Header Bypasses**: Normal HTTP requests arriving over TCP network interfaces cannot override or disable simulation via public request headers (such as `x-wiremint-simulation`) or query parameters.
+- **Isolated Per-Client State**: Simulation overrides applied to an in-process test client affect only requests originated by that client instance, preventing cross-test pollution.
+

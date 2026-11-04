@@ -129,7 +129,9 @@ describe("Test Client Isolation & Reliability (M07.1)", () => {
       const step1Again = await client.get("/sequence");
       expect(step1Again.body).toEqual({ step: 1 });
 
-      // 3. reset() restores history, active scenario, simulation, and all scenario sequences
+      // 3. reset() restores history, active scenario, simulation.
+      // For shared clients (ownership === "shared"), shared scenario sequences are NOT reset!
+      expect(client.ownership).toBe("shared");
       client.setScenario("counter-flow");
       client.setSimulation({ failure: { rate: 1.0, statusCode: 503 } });
       await client.get("/sequence"); // fails with 503
@@ -139,10 +141,25 @@ describe("Test Client Isolation & Reliability (M07.1)", () => {
       expect(client.history()).toHaveLength(0);
       expect(client.getScenario().id).toBe("default");
 
-      // Verify sequence was reset back to step 1
-      const resetStep = await client.get("/sequence");
-      expect(resetStep.status).toBe(200);
+      // Verify sequence continued at step 2 (not reset because client is shared)
+      const continueStep = await client.get("/sequence");
+      expect(continueStep.status).toBe(200);
+      expect(continueStep.body).toEqual({ step: 2 });
+
+      // In contrast, owned clients (.isolated()) DO reset scenario sequences on reset()
+      const ownedClient = createWiremintTestClient.isolated();
+      expect(ownedClient.ownership).toBe("owned");
+      ownedClient.app.get("/seq", {
+        sequence: [
+          { status: 200, body: { step: 1 } },
+          { status: 200, body: { step: 2 } },
+        ],
+      });
+      await ownedClient.get("/seq"); // step 1
+      ownedClient.reset();
+      const resetStep = await ownedClient.get("/seq");
       expect(resetStep.body).toEqual({ step: 1 });
+      await ownedClient.close();
 
       // 4. close() prevents further requests and is idempotent
       await client.close();
@@ -329,6 +346,104 @@ describe("Test Client Isolation & Reliability (M07.1)", () => {
 
       expect(client2.app.routes().some((r) => r.path === "/only-2")).toBe(true);
       expect(client2.app.routes().some((r) => r.path === "/only-1")).toBe(false);
+    });
+  });
+
+  describe("M08.1: Release Blocker Fixes & Regression Suite", () => {
+    it("prevents external HTTP requests over TCP from bypassing simulation via x-wiremint-simulation header", async () => {
+      const port = 46_000 + Math.floor(Math.random() * 3_000);
+      const app = createWiremint({
+        simulation: {
+          failure: { rate: 1.0, statusCode: 503, message: "Simulated Down" },
+        },
+      });
+      app.get("/guarded", () => ({ status: 200, body: { ok: true } }));
+      await app.listen({ port });
+
+      try {
+        // Attempt to bypass simulation with external HTTP header
+        const res = await fetch(`http://127.0.0.1:${port}/guarded`, {
+          headers: {
+            "x-wiremint-simulation": "false",
+          },
+        });
+        // Must NOT bypass simulation: response must still be 503
+        expect(res.status).toBe(503);
+      } finally {
+        await app.close();
+      }
+    });
+
+    it("handles duplicate requestIds without collisions in inspector store", async () => {
+      const app = createWiremint();
+      app.get("/data", () => ({ status: 200, body: { ok: true } }));
+
+      const client1 = createWiremintTestClient(app);
+      const client2 = createWiremintTestClient(app);
+
+      // Both clients make requests using the exact same explicit requestId
+      const res1 = await client1.get("/data", { requestId: "fixed-id" });
+      const res2 = await client2.get("/data", { requestId: "fixed-id" });
+      const res3 = await client1.get("/data", { requestId: "fixed-id" });
+
+      expect(res1.requestId).toBe("fixed-id");
+      expect(res2.requestId).toBe("fixed-id");
+      expect(res3.requestId).toBe("fixed-id");
+
+      // Inspector store holds all 3 entries without overwriting
+      expect(app.inspect().size).toBe(3);
+
+      // client1 history has 2 records, client2 has 1 record
+      expect(client1.history()).toHaveLength(2);
+      expect(client2.history()).toHaveLength(1);
+
+      // Clearing client1 history deletes only client1's 2 records
+      client1.clearHistory();
+      expect(client1.history()).toHaveLength(0);
+      expect(client2.history()).toHaveLength(1);
+      expect(app.inspect().size).toBe(1);
+    });
+
+    it("avoids scenario bleed from global app.setScenario changes", async () => {
+      const app = createWiremint({
+        scenarios: [
+          { id: "beta", name: "Beta" },
+        ],
+      });
+      app.get("/info", ({ scenario }) => ({
+        status: 200,
+        body: { scenarioId: scenario.id },
+      }));
+
+      // Test client created without explicit scenario defaults to "default"
+      const client = createWiremintTestClient(app);
+
+      // Externally mutate the shared application's active scenario
+      app.setScenario("beta");
+      expect(app.getScenario().id).toBe("beta");
+
+      // Test client request must still execute under "default" scenario, NOT "beta"
+      const res = await client.get("/info");
+      expect(res.body).toEqual({ scenarioId: "default" });
+
+      // If client explicitly sets scenario, it uses that
+      client.setScenario("beta");
+      const resBeta = await client.get("/info");
+      expect(resBeta.body).toEqual({ scenarioId: "beta" });
+
+      // If client clears scenario, it reverts to default, NOT the app's global "beta"
+      client.clearScenario();
+      const resCleared = await client.get("/info");
+      expect(resCleared.body).toEqual({ scenarioId: "default" });
+    });
+
+    it("exposes ownership property with correct shared and owned values", () => {
+      const app = createWiremint();
+      const sharedClient = createWiremintTestClient(app);
+      expect(sharedClient.ownership).toBe("shared");
+
+      const ownedClient = createWiremintTestClient.isolated();
+      expect(ownedClient.ownership).toBe("owned");
     });
   });
 });

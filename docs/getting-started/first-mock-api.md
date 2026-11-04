@@ -89,3 +89,4 @@ Switch scenarios dynamically using HTTP headers:
 ```bash
 curl -H "x-wiremint-scenario: outage" http://127.0.0.1:3000/orders
 ```
+

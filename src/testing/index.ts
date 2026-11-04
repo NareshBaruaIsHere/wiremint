@@ -4,6 +4,7 @@ export {
 } from "./test-client.js";
 
 export type {
+  ApplicationOwnership,
   TestClientOptions,
   TestRequestOptions,
   TestResponse,

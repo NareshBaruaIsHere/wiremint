@@ -60,3 +60,4 @@ app.get("/api/deployment/status", {
 - `"repeat-last"`: Once the sequence finishes, subsequent requests continue to return the last response.
 - `"loop"`: Restarts from the beginning of the sequence.
 - `"error"`: Rejects subsequent requests with `500 Sequence exhausted`.
+

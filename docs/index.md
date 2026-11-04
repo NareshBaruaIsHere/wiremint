@@ -77,3 +77,4 @@ const res = await client.get("/users");
 expectStatus(res, 200);
 expectJson(res, [{ id: 1, name: "Alice" }]);
 ```
+

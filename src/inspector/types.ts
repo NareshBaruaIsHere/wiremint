@@ -49,6 +49,12 @@ export interface RequestRecord {
   /** Unique identifier for this request. */
   id: string;
 
+  /** Internal unique record key (for collision-free storage and test client isolation). */
+  internalId?: string;
+
+  /** Internal test client identifier if initiated via a Wiremint test client. */
+  clientId?: string;
+
   /** ISO 8601 timestamp when the request entered Wiremint. */
   timestamp: string;
 
