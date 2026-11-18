@@ -1,4 +1,4 @@
-# Testing API Reference (`wiremint/testing`)
+# Testing API Reference (`@nareshbarua/wiremint/testing`)
 
 Exports for in-process testing, response assertions, and Vitest matchers.
 
@@ -16,7 +16,7 @@ import {
   expectText,
   expectError,
   presets,
-} from "wiremint/testing";
+} from "@nareshbarua/wiremint/testing";
 ```
 
 ## `createWiremintTestClient(app, options?)`
@@ -98,10 +98,10 @@ interface TestResponse<T = unknown> {
 
 ---
 
-## Vitest Matchers (`wiremint/testing/vitest`)
+## Vitest Matchers (`@nareshbarua/wiremint/testing/vitest`)
 
 ```typescript
-import { wiremintMatchers } from "wiremint/testing/vitest";
+import { wiremintMatchers } from "@nareshbarua/wiremint/testing/vitest";
 expect.extend(wiremintMatchers);
 ```
 

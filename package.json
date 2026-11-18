@@ -1,12 +1,15 @@
 {
-  "name": "wiremint",
+  "name": "@nareshbarua/wiremint",
   "version": "0.1.0",
   "description": "TypeScript-first API mocking and network simulation toolkit. Build without waiting for your backend.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "wiremint": "./dist/cli/index.js"
+    "wiremint": "dist/cli/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -58,7 +61,7 @@
   "homepage": "https://github.com/NareshBaruaIsHere/wiremint",
   "repository": {
     "type": "git",
-    "url": "https://github.com/NareshBaruaIsHere/wiremint.git"
+    "url": "git+https://github.com/NareshBaruaIsHere/wiremint.git"
   },
   "packageManager": "pnpm@10.5.2",
   "dependencies": {

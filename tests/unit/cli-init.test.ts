@@ -26,7 +26,7 @@ describe("CLI init Command", () => {
     expect(existsSync(configPath)).toBe(true);
 
     const content = readFileSync(configPath, "utf-8");
-    expect(content).toContain('import { defineConfig } from "wiremint/config";');
+    expect(content).toContain('import { defineConfig } from "@nareshbarua/wiremint/config";');
     expect(content).toContain("export default defineConfig");
 
     const gitignorePath = join(tempDir, ".gitignore");

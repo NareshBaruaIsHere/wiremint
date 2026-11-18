@@ -10,7 +10,7 @@ export interface InitOptions {
   cwd?: string;
 }
 
-const TS_TEMPLATE = `import { defineConfig } from "wiremint/config";
+const TS_TEMPLATE = `import { defineConfig } from "@nareshbarua/wiremint/config";
 
 export default defineConfig({
   server: {

@@ -9,19 +9,19 @@ Install Wiremint in your project using your preferred package manager:
 ::: code-group
 
 ```bash [pnpm]
-pnpm add wiremint
+pnpm add @nareshbarua/wiremint
 ```
 
 ```bash [npm]
-npm install wiremint
+npm install @nareshbarua/wiremint
 ```
 
 ```bash [yarn]
-yarn add wiremint
+yarn add @nareshbarua/wiremint
 ```
 
 ```bash [bun]
-bun add wiremint
+bun add @nareshbarua/wiremint
 ```
 
 :::

@@ -1,9 +1,9 @@
-# Core SDK Reference (`wiremint`)
+# Core SDK Reference (`@nareshbarua/wiremint`)
 
 The primary entry point for Wiremint programmatic usage.
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 ```
 
 ## `createWiremint(options?)`

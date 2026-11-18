@@ -9,7 +9,7 @@ export type ConfigExport = WiremintConfig | Promise<WiremintConfig> | ConfigFn;
  *
  * @example
  * ```ts
- * import { defineConfig } from "wiremint/config";
+ * import { defineConfig } from "@nareshbarua/wiremint/config";
  *
  * export default defineConfig({
  *   server: {

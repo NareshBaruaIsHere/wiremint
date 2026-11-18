@@ -17,7 +17,7 @@ Use `defineConfig` for full autocomplete and type safety:
 
 ```typescript
 // wiremint.config.ts
-import { defineConfig } from "wiremint/config";
+import { defineConfig } from "@nareshbarua/wiremint/config";
 
 export default defineConfig({
   server: {

@@ -7,9 +7,9 @@ Wiremint is a TypeScript-first API mocking and network simulation toolkit. Creat
 ## Installation
 
 ```bash
-npm install wiremint
+npm install @nareshbarua/wiremint
 # or
-pnpm add wiremint
+pnpm add @nareshbarua/wiremint
 ```
 
 **Requires Node.js 22 or later.**
@@ -17,7 +17,7 @@ pnpm add wiremint
 ## Quick Start
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 
 const app = createWiremint({
   basePath: "/api",
@@ -493,11 +493,11 @@ Wiremint can be configured declaratively using configuration files (`wiremint.co
 
 ### 1. Defining Configuration with `defineConfig`
 
-Use the `defineConfig` helper from `wiremint/config` for complete type safety and IDE autocompletion:
+Use the `defineConfig` helper from `@nareshbarua/wiremint/config` for complete type safety and IDE autocompletion:
 
 ```typescript
 // wiremint.config.ts
-import { defineConfig } from "wiremint/config";
+import { defineConfig } from "@nareshbarua/wiremint/config";
 
 export default defineConfig({
   server: {
@@ -570,7 +570,7 @@ export default defineConfig({
 Wiremint can automatically discover your config file or load from an explicit path:
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 
 // Discovers wiremint.config.ts / .js / .mjs / .json in current directory
 const app = await createWiremint.fromConfig();
@@ -634,7 +634,7 @@ npx wiremint <command>
 Or install locally in your project:
 
 ```bash
-pnpm add -D wiremint
+pnpm add -D @nareshbarua/wiremint
 ```
 
 ### CLI Commands
@@ -734,18 +734,18 @@ When you execute `wiremint inspect` or `wiremint scenario set`, the CLI connects
 
 ---
 
-## Testing & Integration Toolkit (`wiremint/testing`)
+## Testing & Integration Toolkit (`@nareshbarua/wiremint/testing`)
 
 Wiremint provides a first-class testing and integration toolkit that lets developers test mock APIs directly from unit and integration test suites **without starting a real HTTP server or managing network ports**.
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 import {
   createWiremintTestClient,
   expectStatus,
   expectJson,
   presets,
-} from "wiremint/testing";
+} from "@nareshbarua/wiremint/testing";
 
 const app = createWiremint();
 app.get("/users", () => presets.ok([{ id: 1, name: "Naresh" }]));
@@ -763,7 +763,7 @@ expectJson(res, [{ id: 1, name: "Naresh" }]);
 - **Zero Network Ports**: Runs entirely in-process using simulated Node.js streams. Never conflicts with busy ports in CI or parallel test runners.
 - **Full Pipeline Execution**: Executes the exact same pipeline as a live server — routing, middleware, network simulation, scenario resolution, request inspection, and events.
 - **Framework-Independent Assertions**: Built-in assertion helpers throwing typed `TestAssertionError` errors that work in Vitest, Jest, Mocha, or standalone scripts.
-- **Vitest Matchers Adapter**: Optional native matchers under `wiremint/testing/vitest` with automatic TypeScript declaration augmentation.
+- **Vitest Matchers Adapter**: Optional native matchers under `@nareshbarua/wiremint/testing/vitest` with automatic TypeScript declaration augmentation.
 - **State & Scenario Control**: Programmatically switch, inspect, and reset scenarios during test execution.
 - **Simulation Control**: Toggle or override latency and failure injection dynamically per test or per request.
 
@@ -836,7 +836,7 @@ import {
   expectBody,
   expectText,
   expectError,
-} from "wiremint/testing";
+} from "@nareshbarua/wiremint/testing";
 
 const res = await client.get("/api/user");
 
@@ -918,7 +918,7 @@ expectStatus(bypassRes, 200);
 Common mock response presets for concise route definitions:
 
 ```typescript
-import { presets } from "wiremint/testing";
+import { presets } from "@nareshbarua/wiremint/testing";
 
 app.get("/items", () => presets.ok([{ id: 1 }]));
 app.post("/items", () => presets.created({ id: 2 }));
@@ -938,7 +938,7 @@ Wiremint includes dedicated matchers for Vitest with TypeScript autocomplete:
 ```typescript
 // vitest.setup.ts
 import { expect } from "vitest";
-import { wiremintMatchers } from "wiremint/testing/vitest";
+import { wiremintMatchers } from "@nareshbarua/wiremint/testing/vitest";
 
 expect.extend(wiremintMatchers);
 ```
@@ -946,8 +946,8 @@ expect.extend(wiremintMatchers);
 ```typescript
 // my-feature.test.ts
 import { describe, it, expect } from "vitest";
-import { createWiremint } from "wiremint";
-import { createWiremintTestClient } from "wiremint/testing";
+import { createWiremint } from "@nareshbarua/wiremint";
+import { createWiremintTestClient } from "@nareshbarua/wiremint/testing";
 
 describe("Users API", () => {
   const app = createWiremint();
@@ -979,7 +979,7 @@ import {
   ConfigurationError,
   ServerError,
   ScenarioError,
-} from "wiremint";
+} from "@nareshbarua/wiremint";
 ```
 
 | Error Class | Code | When |

@@ -72,7 +72,7 @@ app.get("/heavy-report", () => ({ status: 200, body: { data: [] } }), {
 Wiremint supports deterministic random number generators for reproducible test suites:
 
 ```typescript
-import { SeededRandomGenerator } from "wiremint";
+import { SeededRandomGenerator } from "@nareshbarua/wiremint";
 
 const app = createWiremint({
   simulation: {

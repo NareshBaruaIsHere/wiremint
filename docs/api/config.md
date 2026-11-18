@@ -1,4 +1,4 @@
-# Configuration API Reference (`wiremint/config`)
+# Configuration API Reference (`@nareshbarua/wiremint/config`)
 
 Exports for declarative configuration loading, schema validation, and resolution.
 
@@ -10,7 +10,7 @@ import {
   resolveConfig,
   applyConfig,
   findConfigFile,
-} from "wiremint/config";
+} from "@nareshbarua/wiremint/config";
 ```
 
 ## `defineConfig(config)`
@@ -18,7 +18,7 @@ import {
 Type-helper providing autocomplete and validation for configuration objects:
 
 ```typescript
-import { defineConfig } from "wiremint/config";
+import { defineConfig } from "@nareshbarua/wiremint/config";
 
 export default defineConfig({
   server: {

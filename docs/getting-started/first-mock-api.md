@@ -13,7 +13,7 @@ pnpm exec wiremint init
 This creates a default `wiremint.config.ts`:
 
 ```typescript
-import { defineConfig } from "wiremint/config";
+import { defineConfig } from "@nareshbarua/wiremint/config";
 
 export default defineConfig({
   port: 3000,
@@ -65,7 +65,7 @@ GET     /api/items (default)
 You can also author mock servers using the TypeScript SDK:
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 
 const app = createWiremint();
 

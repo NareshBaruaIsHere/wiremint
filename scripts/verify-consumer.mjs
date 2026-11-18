@@ -4,13 +4,21 @@ import os from "node:os";
 import { execSync, spawn } from "node:child_process";
 
 const rootDir = process.cwd();
-const tgzPath = path.resolve(rootDir, "wiremint-0.1.0.tgz");
 
-// Ensure tarball exists
-if (!fs.existsSync(tgzPath)) {
-  console.log("Packaging tarball with pnpm pack...");
-  execSync("pnpm pack", { cwd: rootDir, stdio: "inherit" });
+// Find or generate tarball for @nareshbarua/wiremint
+function getTarball() {
+  const files = fs.readdirSync(rootDir);
+  const match = files.find((f) => f.endsWith(".tgz") && f.includes("wiremint-0.1.0"));
+  if (match) {
+    return path.resolve(rootDir, match);
+  }
+  console.log("Packaging tarball with npm pack...");
+  const packOut = execSync("npm pack", { cwd: rootDir, encoding: "utf-8" }).trim().split("\n").pop().trim();
+  return path.resolve(rootDir, packOut);
 }
+
+const tgzPath = getTarball();
+console.log("Using tarball:", tgzPath);
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wiremint-consumer-test-"));
 console.log("Consumer test directory:", tmpDir);
@@ -32,17 +40,38 @@ try {
   console.log("Installing packed tarball:", tgzPath);
   execSync(`npm install "${tgzPath}"`, { cwd: tmpDir, stdio: "inherit" });
 
-  const cliBin = path.join(tmpDir, "node_modules", "wiremint", "dist", "cli", "index.js");
+  const scopedCliBin = path.join(tmpDir, "node_modules", "@nareshbarua", "wiremint", "dist", "cli", "index.js");
+  const linkedCliBin = path.join(
+    tmpDir,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "wiremint.cmd" : "wiremint",
+  );
 
-  // 1. Test SDK, Config, Testing & Vitest matchers imports
+  if (!fs.existsSync(scopedCliBin)) {
+    throw new Error(`Scoped CLI script not found at ${scopedCliBin}`);
+  }
+  if (!fs.existsSync(linkedCliBin)) {
+    throw new Error(`Linked CLI binary not found at ${linkedCliBin}`);
+  }
+  console.log("✔ CLI binary verified in node_modules/.bin/wiremint and @nareshbarua/wiremint/dist/cli/index.js");
+
+  // Verify CLI execution via the linked binary
+  const versionOutput = execSync(`"${linkedCliBin}" --version`, { cwd: tmpDir, encoding: "utf-8" }).trim();
+  if (versionOutput !== "0.1.0") {
+    throw new Error(`Unexpected CLI version output: ${versionOutput}`);
+  }
+  console.log("✔ CLI command 'wiremint --version' returned:", versionOutput);
+
+  // 1. Test SDK, Config, Testing & Vitest matchers imports using scoped package
   console.log("\n--- Testing SDK, Config, Testing, and Vitest Matchers ---");
   const testScript = `
-import { createWiremint } from 'wiremint';
-import { defineConfig } from 'wiremint/config';
-import { createWiremintTestClient, expectStatus, expectJson, presets } from 'wiremint/testing';
-import { wiremintMatchers } from 'wiremint/testing/vitest';
+import { createWiremint } from '@nareshbarua/wiremint';
+import { defineConfig } from '@nareshbarua/wiremint/config';
+import { createWiremintTestClient, expectStatus, expectJson, presets } from '@nareshbarua/wiremint/testing';
+import { wiremintMatchers } from '@nareshbarua/wiremint/testing/vitest';
 
-console.log('✔ Successfully imported wiremint, wiremint/config, wiremint/testing, wiremint/testing/vitest');
+console.log('✔ Successfully imported @nareshbarua/wiremint, @nareshbarua/wiremint/config, @nareshbarua/wiremint/testing, @nareshbarua/wiremint/testing/vitest');
 
 const app = createWiremint();
 app.get('/consumer-test', () => presets.ok({ status: 'verified', source: 'tarball' }));
@@ -68,11 +97,20 @@ console.log('✔ TestResponse body:', JSON.stringify(res.body));
   // 2. Test CLI init command
   console.log("\n--- Testing CLI Initialization ---");
   const initDir = fs.mkdtempSync(path.join(tmpDir, "init-project-"));
-  execSync(`node "${cliBin}" init --format json`, { cwd: initDir, stdio: "inherit" });
+  execSync(`"${linkedCliBin}" init --format json`, { cwd: initDir, stdio: "inherit" });
   if (!fs.existsSync(path.join(initDir, "wiremint.config.json"))) {
     throw new Error("CLI init failed: wiremint.config.json not generated");
   }
   console.log("✔ CLI init successfully generated wiremint.config.json");
+
+  // Test TypeScript init template as well
+  const initTsDir = fs.mkdtempSync(path.join(tmpDir, "init-ts-project-"));
+  execSync(`"${linkedCliBin}" init --format ts`, { cwd: initTsDir, stdio: "inherit" });
+  const generatedTs = fs.readFileSync(path.join(initTsDir, "wiremint.config.ts"), "utf-8");
+  if (!generatedTs.includes('@nareshbarua/wiremint/config')) {
+    throw new Error(`Generated wiremint.config.ts does not import from @nareshbarua/wiremint/config:\n${generatedTs}`);
+  }
+  console.log("✔ CLI init successfully generated wiremint.config.ts referencing @nareshbarua/wiremint/config");
 
   // 3. Configure mock API for CLI dev server testing
   const serverPort = 39480 + Math.floor(Math.random() * 200);
@@ -96,7 +134,7 @@ console.log('✔ TestResponse body:', JSON.stringify(res.body));
 
   // 4. Test CLI routes command
   console.log("\n--- Testing CLI Route Listing ---");
-  const routesOutput = execSync(`node "${cliBin}" routes --json`, { cwd: tmpDir, encoding: "utf-8" });
+  const routesOutput = execSync(`"${linkedCliBin}" routes --json`, { cwd: tmpDir, encoding: "utf-8" });
   const parsedRoutes = JSON.parse(routesOutput);
   if (!Array.isArray(parsedRoutes) || parsedRoutes.length === 0 || parsedRoutes[0].path !== "/api/users") {
     throw new Error(`CLI routes output unexpected: ${routesOutput}`);
@@ -105,9 +143,10 @@ console.log('✔ TestResponse body:', JSON.stringify(res.body));
 
   // 5. Test CLI development server & control plane
   console.log("\n--- Testing CLI Development Server & Live Control Plane ---");
-  const devProcess = spawn("node", [cliBin, "dev", "--port", String(serverPort)], {
+  const devProcess = spawn(linkedCliBin, ["dev", "--port", String(serverPort)], {
     cwd: tmpDir,
     stdio: ["pipe", "pipe", "pipe"],
+    shell: process.platform === "win32",
   });
 
   let serverStarted = false;
@@ -145,7 +184,7 @@ console.log('✔ TestResponse body:', JSON.stringify(res.body));
   console.log("✔ Live HTTP request succeeded: 200 OK ->", JSON.stringify(initialBody));
 
   // 7. Test CLI request inspection
-  const inspectOutput = execSync(`node "${cliBin}" inspect --json`, { cwd: tmpDir, encoding: "utf-8" });
+  const inspectOutput = execSync(`"${linkedCliBin}" inspect --json`, { cwd: tmpDir, encoding: "utf-8" });
   const parsedInspect = JSON.parse(inspectOutput);
   if (parsedInspect.total < 1 || parsedInspect.requests[0]?.path !== "/api/users") {
     throw new Error(`Unexpected inspect output: ${inspectOutput}`);
@@ -153,7 +192,7 @@ console.log('✔ TestResponse body:', JSON.stringify(res.body));
   console.log("✔ CLI inspect retrieved live captured request history (total:", parsedInspect.total, ")");
 
   // 8. Test live scenario switching via CLI
-  execSync(`node "${cliBin}" scenario set beta`, { cwd: tmpDir, stdio: "inherit" });
+  execSync(`"${linkedCliBin}" scenario set beta`, { cwd: tmpDir, stdio: "inherit" });
   const scenarioRes = await fetch(`http://127.0.0.1:${serverPort}/api/users`);
   const scenarioBody = await scenarioRes.json();
   if (scenarioRes.status !== 200 || scenarioBody[0]?.name !== "Beta Alice") {

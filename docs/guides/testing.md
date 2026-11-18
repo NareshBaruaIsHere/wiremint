@@ -1,15 +1,15 @@
-# Testing Toolkit (`wiremint/testing`)
+# Testing Toolkit (`@nareshbarua/wiremint/testing`)
 
 The testing toolkit allows developers to test mock APIs and frontend integration logic directly within unit and integration tests **without starting a real HTTP server or managing network ports**.
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 import {
   createWiremintTestClient,
   expectStatus,
   expectJson,
   presets,
-} from "wiremint/testing";
+} from "@nareshbarua/wiremint/testing";
 
 const app = createWiremint();
 app.get("/users", () => presets.ok([{ id: 1, name: "Alice" }]));
@@ -81,7 +81,7 @@ import {
   expectBody,
   expectText,
   expectError,
-} from "wiremint/testing";
+} from "@nareshbarua/wiremint/testing";
 
 const res = await client.get("/api/user");
 
@@ -95,12 +95,12 @@ expectText(res, /"name":"Alice"/);
 
 ## Vitest Matchers Adapter
 
-If you are using Vitest, import our custom matchers under `wiremint/testing/vitest`:
+If you are using Vitest, import our custom matchers under `@nareshbarua/wiremint/testing/vitest`:
 
 ```typescript
 // vitest.setup.ts
 import { expect } from "vitest";
-import { wiremintMatchers } from "wiremint/testing/vitest";
+import { wiremintMatchers } from "@nareshbarua/wiremint/testing/vitest";
 
 expect.extend(wiremintMatchers);
 ```
@@ -125,7 +125,7 @@ it("verifies response with custom Vitest matchers", async () => {
 Common mock response factories:
 
 ```typescript
-import { presets } from "wiremint/testing";
+import { presets } from "@nareshbarua/wiremint/testing";
 
 app.get("/items", () => presets.ok([{ id: 1 }]));
 app.post("/items", () => presets.created({ id: 2 }));

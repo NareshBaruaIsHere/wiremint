@@ -34,7 +34,7 @@ features:
 ## Quick Example
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 
 const app = createWiremint({
   basePath: "/api",
@@ -64,8 +64,8 @@ console.log("Wiremint mock server running on http://127.0.0.1:3001/api");
 Test mock APIs directly inside your test suite without starting a server:
 
 ```typescript
-import { createWiremint } from "wiremint";
-import { createWiremintTestClient, expectStatus, expectJson } from "wiremint/testing";
+import { createWiremint } from "@nareshbarua/wiremint";
+import { createWiremintTestClient, expectStatus, expectJson } from "@nareshbarua/wiremint/testing";
 
 const app = createWiremint();
 app.get("/users", () => ({ status: 200, body: [{ id: 1, name: "Alice" }] }));

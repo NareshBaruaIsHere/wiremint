@@ -34,11 +34,11 @@ Verify that your configuration file is located in the project root and matches o
 
 If TypeScript does not recognize `expect(res).toHaveStatus(...)`:
 
-Ensure your `vitest.setup.ts` imports `wiremint/testing/vitest`:
+Ensure your `vitest.setup.ts` imports `@nareshbarua/wiremint/testing/vitest`:
 
 ```typescript
 import { expect } from "vitest";
-import { wiremintMatchers } from "wiremint/testing/vitest";
+import { wiremintMatchers } from "@nareshbarua/wiremint/testing/vitest";
 
 expect.extend(wiremintMatchers);
 ```

@@ -7,7 +7,7 @@ Get up and running with Wiremint in under two minutes.
 Create a file named `server.ts`:
 
 ```typescript
-import { createWiremint } from "wiremint";
+import { createWiremint } from "@nareshbarua/wiremint";
 
 const app = createWiremint({
   basePath: "/api",

@@ -9,7 +9,7 @@ import { wiremintMatchers } from "../../src/testing/vitest/index.js";
  *
  * ```ts
  * import { expect } from "vitest";
- * import { wiremintMatchers } from "wiremint/testing/vitest";
+ * import { wiremintMatchers } from "@nareshbarua/wiremint/testing/vitest";
  *
  * expect.extend(wiremintMatchers);
  * ```
