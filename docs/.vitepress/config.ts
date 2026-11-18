@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
+  base: "/wiremint/",
   title: "Wiremint",
   description: "TypeScript-first API mocking and network simulation toolkit. Build without waiting for your backend.",
   lastUpdated: true,

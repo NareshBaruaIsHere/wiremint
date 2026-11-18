@@ -75,4 +75,12 @@ describe("CI, Release & Docs Workflows (M08.1)", () => {
     expect(content).toContain("pages: write");
     expect(content).toContain("id-token: write");
   });
+
+  it("verifies docs config specifies base /wiremint/ for GitHub Pages", () => {
+    const configPath = resolve(rootDir, "docs/.vitepress/config.ts");
+    expect(existsSync(configPath)).toBe(true);
+
+    const content = readFileSync(configPath, "utf-8");
+    expect(content).toContain('base: "/wiremint/"');
+  });
 });
